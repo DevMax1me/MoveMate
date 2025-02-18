@@ -1,74 +1,170 @@
-import { Image, StyleSheet, Platform } from 'react-native';
+import React, { useState, useEffect } from 'react';
+import { SafeAreaView, View, Text, StyleSheet, TextInput } from 'react-native';
+import { Provider as PaperProvider, Button, Modal, Portal, IconButton } from 'react-native-paper';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { ThemeProvider, useTheme } from '@/components/ThemedContext';
 
-import { HelloWave } from '@/components/HelloWave';
-import ParallaxScrollView from '@/components/ParallaxScrollView';
-import { ThemedText } from '@/components/ThemedText';
-import { ThemedView } from '@/components/ThemedView';
+const HomeScreen = () => {
+    const [calories, setCalories] = useState<string | null>(null);
+    const [sessions, setSessions] = useState<string | null>(null);
+    const [modalVisible, setModalVisible] = useState(false);
+    const [editingField, setEditingField] = useState<'calories' | 'sessions' | null>(null);
+    const [inputValue, setInputValue] = useState('');
 
-export default function HomeScreen() {
-  return (
-    <ParallaxScrollView
-      headerBackgroundColor={{ light: '#A1CEDC', dark: '#1D3D47' }}
-      headerImage={
-        <Image
-          source={require('@/assets/images/partial-react-logo.png')}
-          style={styles.reactLogo}
-        />
-      }>
-      <ThemedView style={styles.titleContainer}>
-        <ThemedText type="title">Welcome!</ThemedText>
-        <HelloWave />
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 1: Try it</ThemedText>
-        <ThemedText>
-          Edit <ThemedText type="defaultSemiBold">app/(tabs)/index.tsx</ThemedText> to see changes.
-          Press{' '}
-          <ThemedText type="defaultSemiBold">
-            {Platform.select({
-              ios: 'cmd + d',
-              android: 'cmd + m',
-              web: 'F12'
-            })}
-          </ThemedText>{' '}
-          to open developer tools.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 2: Explore</ThemedText>
-        <ThemedText>
-          Tap the Explore tab to learn more about what's included in this starter app.
-        </ThemedText>
-      </ThemedView>
-      <ThemedView style={styles.stepContainer}>
-        <ThemedText type="subtitle">Step 3: Get a fresh start</ThemedText>
-        <ThemedText>
-          When you're ready, run{' '}
-          <ThemedText type="defaultSemiBold">npm run reset-project</ThemedText> to get a fresh{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> directory. This will move the current{' '}
-          <ThemedText type="defaultSemiBold">app</ThemedText> to{' '}
-          <ThemedText type="defaultSemiBold">app-example</ThemedText>.
-        </ThemedText>
-      </ThemedView>
-    </ParallaxScrollView>
-  );
-}
+    const { theme, toggleTheme } = useTheme();
+
+    useEffect(() => {
+        // Charger les valeurs sauvegardées
+        const loadData = async () => {
+            const savedCalories = await AsyncStorage.getItem('calories');
+            const savedSessions = await AsyncStorage.getItem('sessions');
+            setCalories(savedCalories);
+            setSessions(savedSessions);
+        };
+        loadData();
+    }, []);
+
+    const openModal = (field: 'calories' | 'sessions') => {
+        setEditingField(field);
+        setInputValue(field === 'calories' ? calories ?? '' : sessions ?? '');
+        setModalVisible(true);
+    };
+
+    const saveChanges = async () => {
+        if (editingField === 'calories') {
+            setCalories(inputValue);
+            await AsyncStorage.setItem('calories', inputValue);
+        } else {
+            setSessions(inputValue);
+            await AsyncStorage.setItem('sessions', inputValue);
+        }
+        setModalVisible(false);
+    };
+
+    // @ts-ignore
+    return (
+        <PaperProvider theme={theme}>
+            <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.background }]}>
+                <View style={styles.titleContainer}>
+                    <Text style={[styles.title, { color: theme.colors.text }]}>Séance du jour !</Text>
+                    <IconButton icon="cog" onPress={toggleTheme}/>
+                </View>
+
+                <View style={styles.infoContainer}>
+                    <Text style={[styles.label, { color: theme.colors.text }]}>Calories par jour :</Text>
+                    <View style={styles.valueContainer}>
+                        <Text style={[styles.value, { color: calories ? theme.colors.primary : theme.colors.text }]}>
+                            {calories ?? 'Inscrivez le nombre de calories'}
+                        </Text>
+                        <IconButton icon="pencil" onPress={() => openModal('calories')}/>
+                    </View>
+                </View>
+
+                <View style={styles.infoContainer}>
+                    <Text style={[styles.label, { color: theme.colors.text }]}>Séances par semaine :</Text>
+                    <View style={styles.valueContainer}>
+                        <Text style={[styles.value, { color: sessions ? theme.colors.primary : theme.colors.text }]}>
+                            {sessions ?? 'Inscrivez le nombre de séances'}
+                        </Text>
+                        <IconButton icon="pencil" onPress={() => openModal('sessions')}/>
+                    </View>
+                </View>
+
+                <Portal>
+                    <Modal
+                        visible={modalVisible}
+                        onDismiss={() => setModalVisible(false)}
+                        contentContainerStyle={[styles.modalContainer, { backgroundColor: theme.colors.background }]}
+                    >
+                        <Text style={[styles.modalTitle, { color: theme.colors.text }]}>
+                            Modifier {editingField === 'calories' ? 'les calories' : 'les séances'}
+                        </Text>
+                        <TextInput
+                            value={inputValue}
+                            onChangeText={setInputValue}
+                            keyboardType="numeric"
+                            placeholder={editingField === 'calories' ? 'Entrez vos calories' : 'Entrez vos séances'}
+                            placeholderTextColor={theme.colors.border}
+                            style={[styles.input, { color: theme.colors.text, borderColor: theme.colors.primary }]}
+                        />
+                        <Button onPress={saveChanges} mode="contained" style={styles.saveButton}>
+                            Valider
+                        </Button>
+                        <Button onPress={() => setModalVisible(false)} mode="outlined" style={styles.cancelButton}>
+                            Fermer
+                        </Button>
+                    </Modal>
+                </Portal>
+            </SafeAreaView>
+        </PaperProvider>
+    );
+};
 
 const styles = StyleSheet.create({
-  titleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  stepContainer: {
-    gap: 8,
-    marginBottom: 8,
-  },
-  reactLogo: {
-    height: 178,
-    width: 290,
-    bottom: 0,
-    left: 0,
-    position: 'absolute',
-  },
+    container: {
+        flex: 1,
+        padding: 20,
+    },
+    titleContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: 24,
+    },
+    title: {
+        fontSize: 24,
+        fontWeight: 'bold',
+    },
+    infoContainer: {
+        marginBottom: 16,
+    },
+    label: {
+        fontSize: 18,
+        marginBottom: 4,
+    },
+    valueContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        padding: 12,
+        borderRadius: 8,
+    },
+    value: {
+        fontSize: 20,
+        fontWeight: 'bold',
+    },
+    modalContainer: {
+        padding: 20,
+        borderRadius: 10,
+        margin: 20,
+    },
+    modalTitle: {
+        fontSize: 20,
+        fontWeight: 'bold',
+        marginBottom: 10,
+    },
+    input: {
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        padding: 10,
+        borderRadius: 8,
+        marginBottom: 10,
+        borderWidth: 1,
+    },
+    saveButton: {
+        marginTop: 10,
+        backgroundColor: '#007AFF', // Bleu électrique
+    },
+    cancelButton: {
+        marginTop: 5,
+        borderColor: '#FF4C4C', // Rouge
+    },
 });
+
+const App = () => (
+    <ThemeProvider>
+        <HomeScreen />
+    </ThemeProvider>
+);
+
+export default App;
