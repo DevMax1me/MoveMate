@@ -5,6 +5,7 @@ import { api, useApi, fmtShort, localToday, nf } from "@/lib/client";
 import { useMe } from "@/components/Shell";
 import { Empty, ErrorBox, Field, Loading, Notice, Tabs, toast } from "@/components/ui";
 import { goalCoherence, parseNum } from "@/lib/calc";
+import { Choice, Completeness, HelpField, Section, splitList } from "@/components/ProfileHelp";
 
 export default function AccountPage() { return <Suspense><Account /></Suspense>; }
 
@@ -17,7 +18,24 @@ function Account() {
     {tab === "profile" ? <Profile /> : tab === "goals" ? <Goals /> : <Privacy />}</div>;
 }
 
-const list = (s: string) => s.split(",").map((x) => x.trim()).filter(Boolean);
+const list = splitList;
+const GOALS: [string, string, string][] = [
+  ["perte de poids", "Perdre du poids", "Vous voulez réduire progressivement votre poids. L’agent n’impose aucun rythme : vous fixez vos objectifs datés dans l’onglet « Objectifs »."],
+  ["maintien", "Me maintenir", "Vous êtes bien où vous en êtes. Aucune suggestion de déficit, on se concentre sur la régularité et l’énergie."],
+  ["progression sportive", "Progresser en sport", "Charges, répétitions, endurance : on suit vos performances, pas seulement le poids."],
+  ["habitudes plus régulières", "Des habitudes régulières", "Pas de chiffre à atteindre : on installe d’abord la routine (noter, bouger, dormir) à votre rythme."],
+  ["", "Je ne sais pas encore", "Aucun souci : l’agent vous posera une question ciblée quand ce sera utile, il n’invente rien."],
+];
+const LEVELS: [string, string, string][] = [
+  ["débutant", "Débutant", "Moins de 6 mois de pratique régulière, ou une reprise après une longue pause. Les propositions restent simples."],
+  ["intermédiaire", "Intermédiaire", "Entre 6 mois et 3 ans de pratique régulière : vous connaissez les mouvements de base."],
+  ["avancé", "Avancé", "Plus de 3 ans de pratique : vous gérez vos charges et votre progression."],
+  ["", "Je ne sais pas", "Par défaut, l’agent propose des exercices de niveau débutant, plus sûrs."],
+];
+const EQUIP_HELP: Record<string, string> = { "élastiques": "bandes de résistance", "haltères": "même une seule paire, ajustable ou non", "banc": "plat ou inclinable", "barre": "barre et disques", "rack": "cage ou supports de squat", "machines": "machines guidées en salle", "barre de traction": "fixe ou de porte", "vélo": "d’appartement ou de salle" };
+const SCHEDULES: [string, string, string][] = [["réguliers", "Réguliers", "Les mêmes horaires la plupart des jours : l’agent peut caler repas et séances sur des créneaux fixes."], ["décalés", "Décalés", "Travail de nuit, équipes, horaires atypiques : les repas et créneaux se calent sur votre réveil, pas sur midi/soir."], ["variables", "Variables", "Ça change chaque semaine : l’agent évite de supposer un horaire habituel."], ["", "Je préfère ne pas dire", "Aucun horaire n’est supposé."]];
+const BUDGETS: [string, string, string][] = [["serré", "Serré", "Recettes simples et économiques en priorité."], ["moyen", "Moyen", "Un bon équilibre entre coût et variété."], ["souple", "Souple", "Pas de contrainte de prix particulière."], ["", "Non précisé", "Aucun budget supposé."]];
+
 function Profile() {
   const me = useMe();
   const { data, error, reload } = useApi<any>("/lifestyle");
@@ -26,6 +44,13 @@ function Profile() {
   if (error) return <ErrorBox error={error} retry={reload} />;
   if (!f) return <Loading />;
   const s = (k: string, v: any) => setF({ ...f, [k]: v });
+  const essentials: [string, boolean][] = [["votre objectif", !!f.goal], ["votre niveau", !!f.level], ["votre matériel", f.equipment.length > 0 || f.gym], ["vos séances par semaine", f.sessions_per_week !== ""], ["la durée max d’une séance", f.max_session_min !== ""]];
+  const fillExample = () => {
+    const ex: Record<string, any> = { goal: "habitudes plus régulières", level: "débutant", equipment: ["haltères", "élastiques"], sessions_per_week: 3, max_session_min: 40, schedule: "décalés", work: "assis", meal_categories: "Petit-déjeuner, Déjeuner, Dîner, Collation", excluded_foods: "porc", liked_foods: "riz, poulet, fruits", disliked_foods: "brocoli", budget: "moyen", cook_time_max_min: 25, people: 2 };
+    const empty = (v: any) => v === "" || v == null || (Array.isArray(v) && !v.length);
+    setF({ ...f, ...Object.fromEntries(Object.entries(ex).filter(([k]) => empty(f[k]))) });
+    toast("Exemple ajouté aux champs vides : modifiez ce qui ne vous correspond pas");
+  };
   async function save() {
     setErr(null);
     try {
@@ -34,32 +59,65 @@ function Profile() {
       toast("Profil enregistré (nouvelle version datée)"); reload();
     } catch (e: any) { setErr(e.message); }
   }
-  const tag = (t: string) => <span className={`badge ${t === "obligatoire" ? "acc" : ""}`}>{t}</span>;
   return <div className="stack">
     {err && <Notice kind="err">{err}</Notice>}
-    <div className="card"><h2 style={{ margin: 0 }}>Identité {tag("facultatif")}</h2>
-      <div className="inline"><Field label="Prénom ou pseudo"><input value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Fuseau horaire"><input value={tz} onChange={(e) => setTz(e.target.value)} /></Field></div>
-      <p className="small muted">Les dates de repas et de pesée sont des dates locales. Si vous changez de fuseau, chaque entrée reste associée à la date locale choisie.</p></div>
-    <div className="card"><h2 style={{ margin: 0 }}>L’essentiel {tag("utile à l’agent")}</h2>
-      <p className="small muted">Utilisé pour personnaliser les propositions. Sans réponse, l’agent pose une question ciblée : il n’invente pas votre profil.</p>
-      <div className="inline"><Field label="Objectif / priorité"><select value={f.goal} onChange={(e) => s("goal", e.target.value)}><option value="">—</option>{["perte de poids", "maintien", "progression sportive", "habitudes plus régulières"].map((x) => <option key={x}>{x}</option>)}</select></Field>
-        <Field label="Niveau sportif"><select value={f.level} onChange={(e) => s("level", e.target.value)}><option value="">—</option><option>débutant</option><option>intermédiaire</option><option>avancé</option></select></Field></div>
-      <h3>Matériel disponible</h3>
-      <div className="row">{data.equipmentOptions.map((e: string) => <label className="chk" key={e}><input type="checkbox" checked={f.equipment.includes(e)} onChange={(x) => s("equipment", x.target.checked ? [...f.equipment, e] : f.equipment.filter((y: string) => y !== e))} />{e}</label>)}<label className="chk"><input type="checkbox" checked={f.gym} onChange={(e) => s("gym", e.target.checked)} />accès à une salle (machines)</label></div>
-      <div className="inline"><Field label="Séances réalistes par semaine"><input inputMode="numeric" value={f.sessions_per_week} onChange={(e) => s("sessions_per_week", e.target.value)} /></Field><Field label="Durée max d’une séance (min)"><input inputMode="numeric" value={f.max_session_min} onChange={(e) => s("max_session_min", e.target.value)} /></Field></div></div>
-    <div className="card"><h2 style={{ margin: 0 }}>Alimentation {tag("facultatif")}</h2>
-      <Field label="Exclusions strictes" hint="aliments ou groupes : porc, gluten, lactose, poisson… (jamais contournées)"><input value={f.excluded_foods} onChange={(e) => s("excluded_foods", e.target.value)} /></Field>
-      <div className="inline"><Field label="Aliments que vous appréciez"><input value={f.liked_foods} onChange={(e) => s("liked_foods", e.target.value)} /></Field><Field label="Aliments que vous évitez (souhait)"><input value={f.disliked_foods} onChange={(e) => s("disliked_foods", e.target.value)} /></Field></div>
-      <Field label="Catégories de repas habituelles" hint="séparées par des virgules : petit-déjeuner, déjeuner…"><input value={f.meal_categories} onChange={(e) => s("meal_categories", e.target.value)} /></Field>
-      <div className="inline"><Field label="Budget indicatif"><select value={f.budget} onChange={(e) => s("budget", e.target.value)}><option value="">—</option><option>serré</option><option>moyen</option><option>souple</option></select></Field><Field label="Temps de préparation max (min)"><input inputMode="numeric" value={f.cook_time_max_min} onChange={(e) => s("cook_time_max_min", e.target.value)} /></Field><Field label="Convives"><input inputMode="numeric" value={f.people} onChange={(e) => s("people", e.target.value)} /></Field></div>
-      <Field label="Allergies / intolérances" hint="information sensible facultative : sert à filtrer, sans garantie sur les traces ni la composition réelle — vérifiez l’étiquette"><input value={f.allergies} onChange={(e) => s("allergies", e.target.value)} /></Field></div>
-    <div className="card"><h2 style={{ margin: 0 }}>Organisation du quotidien {tag("facultatif")}</h2>
-      <div className="inline"><Field label="Horaires"><select value={f.schedule} onChange={(e) => s("schedule", e.target.value)}><option value="">—</option><option>réguliers</option><option>décalés</option><option>variables</option></select></Field><Field label="Travail"><select value={f.work} onChange={(e) => s("work", e.target.value)}><option value="">—</option><option>assis</option><option>actif</option></select></Field><Field label="Mode temporaire"><select value={f.temp_mode} onChange={(e) => s("temp_mode", e.target.value)}><option value="">aucun</option><option>déplacement</option><option>vacances</option><option>semaine chargée</option><option>reprise</option></select></Field></div></div>
-    <div className="card"><h2 style={{ margin: 0 }}>Accompagnement {tag("facultatif")}</h2>
-      <div className="inline"><Field label="Style de langage"><input value={f.coaching.style} onChange={(e) => s("coaching", { ...f.coaching, style: e.target.value })} /></Field><Field label="Fréquence des bilans"><input value={f.coaching.review_frequency} onChange={(e) => s("coaching", { ...f.coaching, review_frequency: e.target.value })} /></Field></div>
-      <label className="chk"><input type="checkbox" checked={f.coaching.silent} onChange={(e) => s("coaching", { ...f.coaching, silent: e.target.checked })} />Silence / pause : pas de sollicitation</label></div>
-    <button className="primary" onClick={save}>Enregistrer le profil</button>
-    {data.history.length > 1 && <p className="small muted">{data.history.length} versions du profil conservées ; la plus récente s’applique dès sa date d’effet.</p>}
+    <div>
+      <Completeness done={essentials.filter((e) => e[1]).length} total={essentials.length} missing={essentials.filter((e) => !e[1]).map((e) => e[0])} />
+      <div className="notice info"><b>Comment ça marche ?</b> Répondez à ce que vous voulez, dans l’ordre que vous voulez. Chaque rubrique explique à quoi elle sert et propose des exemples. Une réponse manquante n’est jamais « devinée » : l’agent vous posera plutôt une question.
+        <div style={{ marginTop: 8 }}><button type="button" onClick={fillExample}>Remplir avec un exemple</button> <span className="small muted">ne touche que les champs vides</span></div></div>
+    </div>
+
+    <Section n={1} title="Qui êtes-vous ?" tag="facultatif" why="Juste de quoi vous appeler par votre prénom et caler les dates sur votre fuseau.">
+      <div className="inline"><HelpField label="Prénom ou pseudo" value={name} onChange={setName} placeholder="Camille" hint="S’affiche dans votre salutation. Vous pouvez mettre un pseudo." /><HelpField label="Fuseau horaire" value={tz} onChange={setTz} placeholder="Europe/Paris" hint="Les repas et pesées sont rangés par date locale. Si vous voyagez, chaque entrée garde la date que vous avez choisie." /></div>
+    </Section>
+
+    <Section n={2} title="Votre objectif" tag="essentiel" why="Pas besoin d’un chiffre : choisissez simplement ce qui vous parle le plus aujourd’hui. Vous pourrez en changer à tout moment, et fixer des cibles précises dans l’onglet « Objectifs datés »." uses="adapter le ton des bilans et ne jamais proposer de déficit calorique si vous visez le maintien.">
+      <Choice label="Ma priorité en ce moment" value={f.goal} onChange={(v) => s("goal", v)} options={GOALS} />
+    </Section>
+
+    <Section n={3} title="Votre pratique sportive" tag="essentiel" why="Ces informations servent à ne vous proposer que des séances réalistes pour vous : faisables avec votre matériel, dans le temps dont vous disposez." uses="construire des routines compatibles avec votre matériel, votre niveau et la durée maximale indiquée.">
+      <Choice label="Mon niveau" value={f.level} onChange={(v) => s("level", v)} options={LEVELS} />
+      <div className="field"><label>Matériel dont je dispose</label>
+        <div className="grid g2" style={{ gap: 0 }}>{data.equipmentOptions.map((e: string) => <label className="chk" key={e} style={{ alignItems: "flex-start", padding: ".35rem 0" }}><input type="checkbox" checked={f.equipment.includes(e)} onChange={(x) => s("equipment", x.target.checked ? [...f.equipment, e] : f.equipment.filter((y: string) => y !== e))} /><span>{e}<span className="small muted" style={{ display: "block" }}>{EQUIP_HELP[e]}</span></span></label>)}</div>
+        <label className="chk" style={{ alignItems: "flex-start" }}><input type="checkbox" checked={f.gym} onChange={(e) => s("gym", e.target.checked)} /><span>J’ai accès à une salle de sport<span className="small muted" style={{ display: "block" }}>cela débloque les exercices avec barre, rack et machines</span></span></label>
+        <p className="small phelp">Aucun matériel ? Ne cochez rien : l’agent proposera des exercices au poids du corps.</p></div>
+      <div className="inline num">
+        <HelpField label="Séances par semaine" value={String(f.sessions_per_week)} onChange={(v) => s("sessions_per_week", v)} inputMode="numeric" placeholder="3" hint="Un nombre réaliste, pas idéal. 2 régulières valent mieux que 5 abandonnées." example="3" />
+        <HelpField label="Durée max d’une séance (min)" value={String(f.max_session_min)} onChange={(v) => s("max_session_min", v)} inputMode="numeric" placeholder="40" hint="Échauffement et repos compris. Les routines proposées ne dépasseront pas cette durée." example="40" />
+      </div>
+    </Section>
+
+    <Section n={4} title="Votre alimentation" tag="facultatif" why="Indiquez ce que vous mangez déjà, ce que vous aimez et ce que vous ne mangez pas. L’idée est de partir de vos habitudes, pas de vous imposer un régime." uses="proposer des recettes et des substitutions acceptables pour vous. Une exclusion est une règle stricte : l’agent ne la contourne jamais, il vous explique le conflit.">
+      <HelpField label="Aliments que je ne mange pas (exclusions)" list value={f.excluded_foods} onChange={(v) => s("excluded_foods", v)} placeholder="porc, gluten, crevettes" suggestions={["porc", "viande", "poisson", "œuf", "lactose", "gluten", "fruits à coque", "soja"]}
+        hint="Séparez par des virgules, ou cliquez sur une suggestion. Vous pouvez écrire un aliment (« crevettes ») ou un groupe (« gluten », « lactose »)." example="porc, lactose" />
+      <div className="inline">
+        <HelpField label="Aliments que j’apprécie" list value={f.liked_foods} onChange={(v) => s("liked_foods", v)} placeholder="riz, poulet, fruits" suggestions={["riz", "pâtes", "poulet", "œuf", "légumineuses", "fruits"]} hint="Ils passeront en premier dans les propositions." example="riz, poulet, fruits" />
+        <HelpField label="Aliments que j’évite (préférence)" list value={f.disliked_foods} onChange={(v) => s("disliked_foods", v)} placeholder="brocoli, champignons" suggestions={["brocoli", "champignons", "poisson", "abats"]} hint="Différent d’une exclusion : l’agent les évite mais peut en proposer s’il n’a vraiment pas d’autre option." example="brocoli" />
+      </div>
+      <HelpField label="Mes repas de la journée" list value={f.meal_categories} onChange={(v) => s("meal_categories", v)} placeholder="Petit-déjeuner, Déjeuner, Dîner" suggestions={["Petit-déjeuner", "Déjeuner", "Dîner", "Collation", "Repas de nuit", "Avant l’entraînement"]} hint="Les noms qui vous correspondent. Vous travaillez de nuit ? Mettez « Repas de nuit » : rien ne suppose un repas à midi." example="Petit-déjeuner, Déjeuner, Dîner, Collation" />
+      <Choice label="Mon budget courses" value={f.budget} onChange={(v) => s("budget", v)} options={BUDGETS} />
+      <div className="inline num">
+        <HelpField label="Temps de cuisine max (min)" value={String(f.cook_time_max_min)} onChange={(v) => s("cook_time_max_min", v)} inputMode="numeric" placeholder="25" hint="Par repas. Les recettes proposées respectent cette limite." example="25" />
+        <HelpField label="Nombre de convives" value={String(f.people)} onChange={(v) => s("people", v)} inputMode="numeric" placeholder="2" hint="Les quantités des recettes proposées sont calculées pour ce nombre." example="2" />
+      </div>
+      <HelpField label="Allergies ou intolérances (information sensible)" list value={f.allergies} onChange={(v) => s("allergies", v)} placeholder="arachide" suggestions={["arachide", "fruits à coque", "lait", "œuf", "gluten", "soja", "crustacés"]}
+        hint="Facultatif. Sert uniquement à filtrer les suggestions. Aucune garantie sur les traces ou la composition réelle d’un produit : vérifiez toujours l’étiquette. N’indiquez rien d’autre de médical." />
+    </Section>
+
+    <Section n={5} title="Votre quotidien" tag="facultatif" why="Pour que les créneaux de repas et de séances tombent au bon moment, sans supposer que vous vivez au rythme « 9h-17h »." uses="proposer des créneaux de séance et de repas qui collent à votre journée.">
+      <Choice label="Mes horaires" value={f.schedule} onChange={(v) => s("schedule", v)} options={SCHEDULES} />
+      <Choice label="Mon travail" value={f.work} onChange={(v) => s("work", v)} options={[["assis", "Plutôt assis", "Beaucoup de temps assis : l’agent peut suggérer de petites pauses actives."], ["actif", "Plutôt actif", "Vous bougez déjà beaucoup dans la journée."], ["", "Non précisé", "Rien n’est supposé."]]} />
+      <Choice label="Une période particulière en ce moment ?" value={f.temp_mode} onChange={(v) => s("temp_mode", v)} options={[["", "Non, rien de spécial", "Votre rythme habituel s’applique."], ["déplacement", "En déplacement", "Mode temporaire : propositions plus légères, sans matériel."], ["vacances", "En vacances", "Mode temporaire : pas de pression, le suivi reste libre."], ["semaine chargée", "Semaine chargée", "Mode temporaire : on réduit les priorités au minimum."], ["reprise", "Reprise", "Mode temporaire : on repart doucement."]]} />
+      <p className="small phelp">Un mode temporaire ne redéfinit pas votre mode de vie : vous pouvez le retirer quand c’est fini.</p>
+    </Section>
+
+    <Section n={6} title="Comment vous accompagner" tag="facultatif" why="Votre façon préférée de recevoir l’aide de l’agent. Il ne vous juge pas, ne culpabilise pas, et vous pouvez demander le silence à tout moment." uses="adapter le ton, la fréquence des bilans et le niveau de détail.">
+      <HelpField label="Style de langage souhaité" value={f.coaching.style} onChange={(v) => s("coaching", { ...f.coaching, style: v })} placeholder="direct et concis" hint="En quelques mots. Ce champ sert de repère de ton." example="direct et concis, sans jargon" />
+      <HelpField label="Fréquence des bilans" value={f.coaching.review_frequency} onChange={(v) => s("coaching", { ...f.coaching, review_frequency: v })} placeholder="une fois par semaine, le dimanche" hint="Quand vous voulez faire le point. Un bilan reste toujours descriptif." example="une fois par semaine, le dimanche" />
+      <label className="chk"><input type="checkbox" checked={f.coaching.silent} onChange={(e) => s("coaching", { ...f.coaching, silent: e.target.checked })} />Silence : ne pas me solliciter pour l’instant</label>
+    </Section>
+
+    <div className="row" style={{ position: "sticky", bottom: 100, zIndex: 5 }}><button className="primary" onClick={save}>Enregistrer mon profil</button>{data.history.length > 1 && <span className="small muted">{data.history.length} versions conservées</span>}</div>
   </div>;
 }
 
