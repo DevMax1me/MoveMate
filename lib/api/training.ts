@@ -22,7 +22,7 @@ export function mountTraining(r: Router) {
       AND version=(SELECT MAX(version) FROM exercises x WHERE x.ex_key=e.ex_key AND (x.user_id IS NULL OR x.user_id=?) AND x.status='published') ORDER BY name`, user.id, user.id);
     const n = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     let out = rows.map((e) => exOut(e, user)).filter((e) =>
-      (!q || n(e.name + " " + (e.alias ?? "")).includes(q)) &&
+      (!q || q.split(/\s+/).every((w: string) => n(e.name + " " + (e.alias ?? "") + " " + e.primary_muscles.join(" ") + " " + e.movement).includes(w))) &&
       (!place || (place === "home" ? e.place !== "gym" : place === "gym" ? e.place !== "home" : true)) &&
       (!muscle || e.primary_muscles.some((m: string) => n(m).includes(n(muscle))) || e.secondary_muscles.some((m: string) => n(m).includes(n(muscle)))) &&
       (!eq || (eq === "none" ? e.equipment.length === 0 : e.equipment.some((x: string) => x.includes(eq)))) &&

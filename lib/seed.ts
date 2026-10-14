@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import crypto from "node:crypto";
+import { buildCatalog } from "./catalog-exercises";
 
 const id = () => crypto.randomBytes(12).toString("base64url");
 const now = () => new Date().toISOString();
@@ -104,12 +105,16 @@ const EXOS: E[] = [
 const csv = (s: string) => JSON.stringify(s ? s.split(",") : []);
 
 export function seedCatalog(db: DatabaseSync) {
-  const n = (db.prepare("SELECT COUNT(*) c FROM exercises WHERE user_id IS NULL").get() as { c: number }).c;
-  if (n === 0) {
-    const ins = db.prepare(`INSERT INTO exercises(id,ex_key,version,user_id,name,alias,movement,primary_muscles,secondary_muscles,place,equipment,level,metric,steps,mistakes,easier,alternative,status,reviewed_at)
-      VALUES(?,?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,'published',NULL)`);
-    for (const e of EXOS) ins.run(id(), e[0], 1, e[1], e[2], e[3], csv(e[4]), csv(e[5]), e[6], csv(e[7]), e[8], e[9], e[10], e[11], e[12], e[13]);
-  }
+  // Fiches de base (texte rédigé à la main) + catalogue étendu. On n'insère que ce qui manque : les bases existantes sont complétées sans doublon.
+  const have = new Set((db.prepare("SELECT ex_key FROM exercises WHERE user_id IS NULL").all() as { ex_key: string }[]).map((r) => r.ex_key));
+  const ins = db.prepare(`INSERT INTO exercises(id,ex_key,version,user_id,name,alias,movement,primary_muscles,secondary_muscles,place,equipment,level,metric,steps,mistakes,easier,alternative,status,reviewed_at)
+    VALUES(?,?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,'published',NULL)`);
+  db.exec("BEGIN");
+  try {
+    for (const e of EXOS) if (!have.has(e[0])) { ins.run(id(), e[0], 1, e[1], e[2], e[3], csv(e[4]), csv(e[5]), e[6], csv(e[7]), e[8], e[9], e[10], e[11], e[12], e[13]); have.add(e[0]); }
+    for (const e of buildCatalog()) if (!have.has(e.slug)) { ins.run(id(), e.slug, 1, e.name, null, e.movement, JSON.stringify(e.primary), JSON.stringify(e.secondary), e.place, JSON.stringify(e.equipment), e.level, e.metric, e.steps, e.mistakes, e.easier, e.alternative); have.add(e.slug); }
+    db.exec("COMMIT");
+  } catch (err) { db.exec("ROLLBACK"); throw err; }
   const nf = (db.prepare("SELECT COUNT(*) c FROM foods WHERE user_id IS NULL").get() as { c: number }).c;
   if (nf === 0) {
     const ins = db.prepare(`INSERT INTO foods(id,food_key,version,user_id,name,basis,portion_g,portion_ml,portion_label,density,kcal,protein,carbs,fat,fiber,source,license,created_at)

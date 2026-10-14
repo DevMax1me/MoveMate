@@ -202,9 +202,9 @@ d("recette bout en bout", () => {
     expect((await A.put(`/notes/${n.json.note_key}`, { content: "v2bis", version: 1 })).status).toBe(409);
   });
 
-  it("T22 catalogue : 40 fiches, filtres, compatibilité matériel", async () => {
+  it("T22 catalogue étendu : 350+ fiches, filtres, compatibilité matériel", async () => {
     const all = (await A.get("/exercises")).json.exercises;
-    expect(all.length).toBeGreaterThanOrEqual(40);
+    expect(all.length).toBeGreaterThanOrEqual(350);
     const C = await signup("eq@test.fr");
     expect((await C.get("/exercises?compatible=1")).json.exercises.every((e: any) => e.compatible)).toBe(true);
     await C.post("/lifestyle", { data: { equipment: ["haltères"], gym: false } });
@@ -242,7 +242,7 @@ d("agent : recette de la personnalisation", () => {
     const r = await propose(c, "recipe"); expect(r.proposal.payload.time_min).toBeLessThanOrEqual(15);
     const ro = await propose(c, "routine", { place: "home" });
     expect(ro.proposal.payload.estimated_min).toBeLessThanOrEqual(20);
-    for (const it of ro.proposal.payload.items) expect(["squat-poids-corps", "goblet-squat", "pompes", "pompes-inclinees", "pompes-genoux", "rowing-haltere", "developpe-couche-halteres", "developpe-epaules-halteres", "elevations-laterales", "dead-bug", "bird-dog", "crunch", "planche", "pont-fessier", "fentes-arriere", "step-up", "souleve-terre-roumain", "mollets-debout", "planche-laterale", "squat-bulgare", "rowing-elastique", "face-pull", "pallof-press", "developpe-incline-halteres"]).toContain(it.slug);
+    for (const it of ro.proposal.payload.items) expect((await c.get(`/exercises/${it.slug}`)).json.exercise.compatible, it.slug).toBe(true); // jamais d'exercice dont le matériel manque
   });
   it("T28 maintien : aucune suggestion de déficit ; T27 horaires de nuit", async () => {
     const c = await user("ag28@test.fr", { schedule: "décalés", meal_categories: ["Repas de nuit"] });
@@ -319,5 +319,62 @@ d("agent : recette de la personnalisation", () => {
     expect((await c.get("/agent/memory")).json.facts.length).toBe(0);
     await c.post(`/agent/proposals/${mem.json.proposal.id}/accept`);
     expect((await c.get("/agent/memory")).json.facts.length).toBe(1);
+  });
+});
+
+d("repas composés et repas types", () => {
+  it("un repas = une catégorie avec plusieurs aliments, enregistrés d'un coup (tout ou rien)", async () => {
+    const C = await signup("meal1@test.fr");
+    const a = await C.post("/foods", { name: "Riz test", basis: "100g", kcal: 130, protein: 3, carbs: 28, fat: 0.3 });
+    const b = await C.post("/foods", { name: "Poulet test", basis: "100g", kcal: 165, protein: 31, carbs: 0, fat: 3.6 });
+    const day = "2026-02-10";
+    const r = await C.post("/meals-batch", { date: day, category: "Déjeuner", items: [{ kind: "food", food_id: a.json.id, qty: 150, unit: "g" }, { kind: "food", food_id: b.json.id, qty: 120, unit: "g" }] });
+    expect(r.status).toBe(200); expect(r.json.count).toBe(2);
+    const info = (await C.get(`/meals?date=${day}`)).json;
+    expect(info.entries.length).toBe(2); expect(info.totals.kcal).toBeCloseTo(195 + 198);
+    // tout ou rien : une ligne invalide n'écrit rien
+    const bad = await C.post("/meals-batch", { date: day, category: "Dîner", items: [{ kind: "food", food_id: a.json.id, qty: 100, unit: "g" }, { kind: "food", food_id: a.json.id, qty: 100, unit: "ml" }] });
+    expect(bad.status).toBe(422);
+    expect((await C.get(`/meals?date=${day}`)).json.entries.filter((e: any) => e.category === "Dîner").length).toBe(0);
+    expect((await C.post("/meals-batch", { date: day, category: "Dîner", items: [] })).status).toBe(400);
+  });
+  it("réutiliser le repas complet : copie vers une autre date et une autre catégorie", async () => {
+    const C = await signup("meal2@test.fr");
+    const a = await C.post("/foods", { name: "Pâtes test", basis: "100g", kcal: 158, protein: 5.8, carbs: 31, fat: 0.9 });
+    await C.post("/meals-batch", { date: "2026-02-11", category: "Déjeuner", items: [{ kind: "food", food_id: a.json.id, qty: 200, unit: "g" }] });
+    const c = await C.post("/meals-copy", { from: "2026-02-11", category: "Déjeuner", to: "2026-02-12", to_category: "Dîner" });
+    expect(c.json.copied).toBe(1);
+    const d2 = (await C.get("/meals?date=2026-02-12")).json;
+    expect(d2.entries[0].category).toBe("Dîner"); expect(d2.totals.kcal).toBeCloseTo(316);
+    // supprimer un repas entier
+    expect((await C.post("/meals-delete", { date: "2026-02-12", category: "Dîner" })).json.deleted).toBe(1);
+    expect((await C.get("/meals?date=2026-02-12")).json.entries.length).toBe(0);
+  });
+  it("repas type : mémoriser à l'enregistrement ou depuis le journal, puis réutiliser avec les valeurs actuelles", async () => {
+    const C = await signup("meal3@test.fr");
+    const a = await C.post("/foods", { name: "Avoine test", basis: "100g", kcal: 370, protein: 13, carbs: 60, fat: 7 });
+    const rec = await C.post("/recipes", { title: "Bol test", servings: 2, ingredients: [{ food_id: a.json.id, qty: 100, unit: "g" }] });
+    const r = await C.post("/meals-batch", { date: "2026-02-13", category: "Petit-déjeuner", template_name: "Mon petit-déj", items: [{ kind: "food", food_id: a.json.id, qty: 50, unit: "g" }, { kind: "recipe", recipe_id: (await C.get("/recipes")).json.recipes.find((x: any) => x.recipe_key === rec.json.recipe_key).id, qty: 1, unit: "portion" }] });
+    expect(r.json.template_id).toBeTruthy();
+    const t2 = await C.post("/meal-templates", { name: "Depuis le journal", from: { date: "2026-02-13", category: "Petit-déjeuner" } });
+    expect(t2.status).toBe(200);
+    const list = (await C.get("/meal-templates")).json.templates;
+    expect(list.length).toBe(2); expect(list[0].count).toBe(2); expect(list[0].items[0].food || list[0].items[0].recipe).toBeTruthy();
+    // l'aliment change : le repas type reprend la dernière version, l'ancien repas garde ses valeurs
+    await C.put(`/foods/${a.json.food_key}`, { name: "Avoine test", basis: "100g", kcal: 400, protein: 13, carbs: 60, fat: 7 });
+    const u = await C.post(`/meal-templates/${list[0].id}/use`, { date: "2026-02-14" });
+    expect(u.json.count).toBe(2);
+    const old = (await C.get("/meals?date=2026-02-13")).json, neu = (await C.get("/meals?date=2026-02-14")).json;
+    expect(old.entries.find((e: any) => e.kind === "food").kcal).toBeCloseTo(185);
+    expect(neu.entries.find((e: any) => e.kind === "food").kcal).toBeCloseTo(200);
+    // repas récents
+    const rc = (await C.get("/meals-recent")).json.meals;
+    expect(rc.length).toBeGreaterThanOrEqual(2); expect(rc[0].items.length).toBeGreaterThan(0);
+    // isolation : un autre compte ne voit ni n'utilise ces repas types
+    const D = await signup("meal4@test.fr");
+    expect((await D.get("/meal-templates")).json.templates.length).toBe(0);
+    expect((await D.post(`/meal-templates/${list[0].id}/use`, { date: "2026-02-14" })).status).toBe(404);
+    expect((await C.del(`/meal-templates/${list[1].id}`)).status).toBe(200);
+    expect((await C.get("/meal-templates")).json.templates.length).toBe(1);
   });
 });

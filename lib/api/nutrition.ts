@@ -53,6 +53,13 @@ function insertFood(userId: string, key: string, version: number, f: ReturnType<
   return id;
 }
 
+const recipeOut = (user: User, rr: RecipeRow) => {
+  const ings = P<Ing[]>(rr.ingredients, []).map((i) => { const f = foodById(user.id, i.food_id); return { ...i, name: f?.name ?? "?" }; });
+  const totals = recipeTotals(user.id, rr);
+  return { ...rr, tags: P(rr.tags, []), ingredients: ings, totals: { kcal: totals.kcal, protein: totals.protein, carbs: totals.carbs, fat: totals.fat, fiber: totals.fiber, incomplete: totals.incomplete },
+    perServing: rr.servings ? { kcal: totals.kcal == null ? null : totals.kcal / rr.servings, protein: totals.protein == null ? null : totals.protein / rr.servings } : null };
+};
+
 const foodOut = (f: FoodRow & { favorite?: number | null }) => ({ ...f, public: f.user_id == null, incomplete: f.protein == null || f.carbs == null || f.fat == null });
 
 // ---------- Journée ----------
@@ -76,8 +83,24 @@ export function dayInfo(userId: string, date: string) {
   };
 }
 
+
+type TItem = { kind: "food" | "recipe"; key: string; qty: number; unit: Unit; label: string };
+const templateItem = (s: { kind: "food" | "recipe"; ref_id: string; qty: number; unit: Unit; label: string }): TItem => ({
+  kind: s.kind, key: s.kind === "food" ? get<any>("SELECT food_key k FROM foods WHERE id=?", s.ref_id)?.k : get<any>("SELECT recipe_key k FROM recipes WHERE id=?", s.ref_id)?.k, qty: s.qty, unit: s.unit, label: s.label });
+/** Entrée de journal → élément réutilisable (par clé : on repart des dernières versions de l'aliment ou de la recette). */
+const entryItem = (m: any): TItem | null => { const t = templateItem({ kind: m.kind, ref_id: m.ref_id, qty: m.qty, unit: m.unit, label: m.label }); return t.key ? t : null; };
+/** Éléments résolus avec l'aliment ou la recette actuels : le client calcule l'aperçu avec les mêmes règles que le serveur. */
+function expandItems(user: User, items: TItem[]) {
+  const out: (TItem & { food?: any; recipe?: any })[] = [];
+  for (const it of items) {
+    if (it.kind === "food") { const f = latestFood(user.id, it.key); if (f) out.push({ ...it, food: { ...f, public: f.user_id == null, incomplete: f.protein == null || f.carbs == null || f.fat == null } }); }
+    else { const r = latestRecipe(user.id, it.key); if (r && !r.archived) out.push({ ...it, recipe: recipeOut(user, r) }); }
+  }
+  return out;
+}
+
 function snapshot(user: User, b: any) {
-  const kind = b.kind === "recipe" ? "recipe" : "food";
+  const kind: "food" | "recipe" = b.kind === "recipe" ? "recipe" : "food";
   const qty = num(b.qty, "Quantité", { min: 0.0001 });
   const unit = (b.unit ?? "g") as Unit;
   if (!["g", "ml", "portion"].includes(unit)) throw bad("Unité invalide.");
@@ -236,9 +259,10 @@ export function mountNutrition(r: Router) {
   r.post("/meals-copy", ({ user, body }) => {
     const from = dateStr(body.from), to = dateStr(body.to);
     const cat = body.category ? str(body.category, "Catégorie", 40) : null;
+    const toCat = body.to_category ? str(body.to_category, "Catégorie", 40) : null; // réutiliser un « déjeuner » complet comme « dîner », par exemple
     const rows = all<any>(`SELECT id FROM meals WHERE user_id=? AND date=? ${cat ? "AND category=?" : ""}`, ...(cat ? [user.id, from, cat] : [user.id, from]));
-    tx(() => rows.forEach((x) => run(`INSERT INTO meals(id,user_id,date,category,kind,ref_id,label,qty,unit,note,kcal,protein,carbs,fat,fiber,incomplete,estimated,created_at)
-      SELECT ?,user_id,?,category,kind,ref_id,label,qty,unit,note,kcal,protein,carbs,fat,fiber,incomplete,estimated,? FROM meals WHERE id=?`, uid(), to, nowIso(), x.id)));
+    tx(() => { rows.forEach((x) => run(`INSERT INTO meals(id,user_id,date,category,kind,ref_id,label,qty,unit,note,kcal,protein,carbs,fat,fiber,incomplete,estimated,created_at)
+      SELECT ?,user_id,?,COALESCE(?,category),kind,ref_id,label,qty,unit,note,kcal,protein,carbs,fat,fiber,incomplete,estimated,? FROM meals WHERE id=?`, uid(), to, toCat, nowIso(), x.id)); run("UPDATE day_status SET closed=0 WHERE user_id=? AND date=?", user.id, to); });
     return { copied: rows.length };
   });
   // Recalcul explicite et tracé avec la dernière version (REC 03).
@@ -254,6 +278,76 @@ export function mountNutrition(r: Router) {
       s.ref_id, s.label, s.c.kcal, s.c.protein, s.c.carbs, s.c.fat, s.c.fiber, +s.c.incomplete, +s.c.estimated, nowIso(), m.id);
     audit(user.id, user.id, "meal_recalculated", m.id);
   });
+
+  // ---------- repas composés (une catégorie, plusieurs aliments) ----------
+  // Un « repas » = une date + une catégorie. On y ajoute plusieurs aliments ou recettes d'un seul geste ; tout est calculé côté serveur.
+  r.post("/meals-batch", ({ user, body }) => {
+    const date = dateStr(body.date);
+    const cat = str(body.category, "Catégorie", 40);
+    const raw = Array.isArray(body.items) ? body.items.slice(0, 60) : [];
+    if (!raw.length) throw bad("Ajoutez au moins un aliment ou une recette au repas.");
+    const snaps: { s: ReturnType<typeof snapshot>; note: string | null }[] = raw.map((it: any) => ({ s: snapshot(user, it), note: str(it.note, "Commentaire", 300, false) || null })); // tout est validé avant d'écrire
+    let templateId: string | null = null;
+    tx(() => {
+      for (const { s, note } of snaps) {
+        run(`INSERT INTO meals(id,user_id,date,category,kind,ref_id,label,qty,unit,note,kcal,protein,carbs,fat,fiber,incomplete,estimated,created_at)
+          VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`, uid(), user.id, date, cat, s.kind, s.ref_id, s.label, s.qty, s.unit, note, s.c.kcal, s.c.protein, s.c.carbs, s.c.fat, s.c.fiber, +s.c.incomplete, +s.c.estimated, nowIso());
+        if (s.kind === "food") { const f = foodById(user.id, s.ref_id)!; run(`INSERT INTO food_prefs(user_id,food_key,last_used) VALUES(?,?,?) ON CONFLICT(user_id,food_key) DO UPDATE SET last_used=excluded.last_used`, user.id, f.food_key, nowIso()); }
+      }
+      run("UPDATE day_status SET closed=0 WHERE user_id=? AND date=?", user.id, date); // modifier une journée close la rend partielle
+      if (body.template_name) { templateId = uid(); run("INSERT INTO meal_templates(id,user_id,name,category,items,created_at) VALUES(?,?,?,?,?,?)", templateId, user.id, str(body.template_name, "Nom du repas type", 80), cat, J(snaps.map((x: { s: ReturnType<typeof snapshot> }) => templateItem(x.s))), nowIso()); }
+    });
+    return { count: snaps.length, template_id: templateId };
+  });
+  r.post("/meals-delete", ({ user, body }) => {
+    const date = dateStr(body.date), cat = str(body.category, "Catégorie", 40);
+    const n = run("DELETE FROM meals WHERE user_id=? AND date=? AND category=?", user.id, date, cat).changes;
+    run("UPDATE day_status SET closed=0 WHERE user_id=? AND date=?", user.id, date);
+    return { deleted: Number(n) };
+  });
+  // Repas récents : les derniers « déjeuners complets » à reprendre tels quels ou à ajuster.
+  r.get("/meals-recent", ({ user }) => {
+    const rows = all<any>("SELECT * FROM meals WHERE user_id=? ORDER BY date DESC, created_at DESC LIMIT 400", user.id);
+    const groups = new Map<string, any[]>();
+    for (const m of rows) { const k = `${m.date}|${m.category}`; groups.set(k, [...(groups.get(k) ?? []), m]); }
+    const out = [...groups.entries()].slice(0, 14).map(([k, ms]) => {
+      const items = ms.reverse().map(entryItem).filter(Boolean) as any[];
+      return { date: ms[0].date, category: ms[0].category, count: ms.length, kcal: ms.every((m) => m.kcal == null) ? null : ms.reduce((a, m) => a + (m.kcal ?? 0), 0), label: ms.slice(0, 3).map((m) => m.label).join(", ") + (ms.length > 3 ? "…" : ""), items: expandItems(user, items) };
+    });
+    return { meals: out };
+  });
+  r.get("/meal-templates", ({ user }) => {
+    const rows = all<any>("SELECT * FROM meal_templates WHERE user_id=? ORDER BY created_at DESC", user.id);
+    return { templates: rows.map((t) => { const items = P<any[]>(t.items, []); const exp = expandItems(user, items); const kc = exp.map((e) => { try { return snapshot(user, { kind: e.kind, key: e.key, qty: e.qty, unit: e.unit }).c.kcal; } catch { return null; } }); return { id: t.id, name: t.name, category: t.category, count: items.length, missing: items.length - exp.length, kcal: kc.some((x) => x != null) ? kc.reduce((a: number, x) => a + (x ?? 0), 0) : null, items: exp }; }) };
+  });
+  r.post("/meal-templates", ({ user, body }) => {
+    const name = str(body.name, "Nom du repas type", 80);
+    let items: any[];
+    let cat = str(body.category, "Catégorie", 40, false) || "Repas";
+    if (body.from) { // à partir d'un repas déjà noté (date + catégorie)
+      const date = dateStr(body.from.date); cat = str(body.from.category, "Catégorie", 40);
+      items = all<any>("SELECT * FROM meals WHERE user_id=? AND date=? AND category=? ORDER BY created_at", user.id, date, cat).map(entryItem).filter(Boolean) as any[];
+    } else items = (Array.isArray(body.items) ? body.items : []).slice(0, 60).map((it: any) => templateItem(snapshot(user, it)));
+    if (!items.length) throw bad("Ce repas est vide.");
+    const id = uid();
+    run("INSERT INTO meal_templates(id,user_id,name,category,items,created_at) VALUES(?,?,?,?,?,?)", id, user.id, name, cat, J(items), nowIso());
+    return { id };
+  });
+  r.del("/meal-templates/:id", ({ user, params }) => { run("DELETE FROM meal_templates WHERE id=? AND user_id=?", params[0], user.id); });
+  // Réutiliser un repas type : valeurs actuelles des aliments, quantités d'origine.
+  r.post("/meal-templates/:id/use", ({ user, params, body }) => {
+    const t = get<any>("SELECT * FROM meal_templates WHERE id=? AND user_id=?", params[0], user.id);
+    if (!t) throw notFound();
+    const date = dateStr(body.date), cat = body.category ? str(body.category, "Catégorie", 40) : t.category;
+    const items = P<any[]>(t.items, []).map((it) => { try { return snapshot(user, { kind: it.kind, key: it.key, qty: it.qty, unit: it.unit }); } catch { return null; } }).filter(Boolean) as ReturnType<typeof snapshot>[];
+    if (!items.length) throw bad("Les aliments de ce repas type ne sont plus disponibles.");
+    tx(() => {
+      for (const s of items) run(`INSERT INTO meals(id,user_id,date,category,kind,ref_id,label,qty,unit,note,kcal,protein,carbs,fat,fiber,incomplete,estimated,created_at)
+        VALUES(?,?,?,?,?,?,?,?,?,NULL,?,?,?,?,?,?,?,?)`, uid(), user.id, date, cat, s.kind, s.ref_id, s.label, s.qty, s.unit, s.c.kcal, s.c.protein, s.c.carbs, s.c.fat, s.c.fiber, +s.c.incomplete, +s.c.estimated, nowIso());
+      run("UPDATE day_status SET closed=0 WHERE user_id=? AND date=?", user.id, date);
+    });
+    return { count: items.length };
+  });
   r.post("/days/:date/close", ({ user, params, body }) => {
     const date = dateStr(params[0]);
     const closed = body.closed === false ? 0 : 1;
@@ -262,12 +356,6 @@ export function mountNutrition(r: Router) {
   });
 
   // --- recettes ---
-  const recipeOut = (user: User, rr: RecipeRow) => {
-    const ings = P<Ing[]>(rr.ingredients, []).map((i) => { const f = foodById(user.id, i.food_id); return { ...i, name: f?.name ?? "?" }; });
-    const totals = recipeTotals(user.id, rr);
-    return { ...rr, tags: P(rr.tags, []), ingredients: ings, totals: { kcal: totals.kcal, protein: totals.protein, carbs: totals.carbs, fat: totals.fat, fiber: totals.fiber, incomplete: totals.incomplete },
-      perServing: rr.servings ? { kcal: totals.kcal == null ? null : totals.kcal / rr.servings, protein: totals.protein == null ? null : totals.protein / rr.servings } : null };
-  };
   r.get("/recipes", ({ user, query }) => {
     const q = (query.get("q") ?? "").toLowerCase();
     const rows = all<RecipeRow>(`SELECT * FROM recipes r WHERE user_id=? AND archived=0 AND version=(SELECT MAX(version) FROM recipes x WHERE x.recipe_key=r.recipe_key AND x.user_id=r.user_id) ORDER BY title`, user.id);

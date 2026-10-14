@@ -5,11 +5,13 @@ import { Field, Modal, Notice, toast } from "./ui";
 import { parseNum } from "@/lib/calc";
 import { Meter } from "./charts";
 import Mascot from "./Mascot";
+import { CATEGORIES } from "./MealAdder";
 
 export const STATE_LABEL: Record<string, [string, string]> = { non_renseignee: ["non renseignée", ""], partielle: ["partielle", "warn"], terminee: ["terminée", "ok"] };
 
 export function DayCard({ day, date, reload, onAdd }: { day: any; date: string; reload: () => void; onAdd: (cat?: string) => void }) {
   const [edit, setEdit] = useState<any | null>(null);
+  const [meal, setMeal] = useState<{ kind: "reuse" | "save" | "delete"; category: string } | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const t = day.totals;
   const groups: Record<string, any[]> = {};
@@ -35,17 +37,27 @@ export function DayCard({ day, date, reload, onAdd }: { day: any; date: string; 
       {day.macrosIncomplete && day.entries.length > 0 && <p><span className="badge warn">macros incomplètes</span> <span className="small muted">Les valeurs inconnues ne sont pas comptées comme 0 : ces totaux sont des minimums connus.</span></p>}
       {day.estimated && <p><span className="badge warn">dont énergie estimée</span></p>}
       {day.entries.length === 0 ? <div className="empty"><Mascot mood="sleepy" size={56} /><div>Rien de noté pour ce jour. <div className="row" style={{ marginTop: 10 }}><button className="primary" onClick={() => onAdd()}>Ajouter un repas</button><button onClick={copyPrev}>Copier la veille</button></div></div></div> :
-        Object.entries(groups).map(([c, es]) => (
-          <div key={c}><h3>{c}</h3>
+        Object.entries(groups).map(([c, es]) => {
+          const kc = es.every((e) => e.kcal == null) ? null : es.reduce((a, e) => a + (e.kcal ?? 0), 0);
+          return (
+          <div key={c} className="meal">
+            <div className="row spread" style={{ alignItems: "baseline" }}><h3 style={{ margin: ".9rem 0 .1rem" }}>{c}</h3><span className="small muted">{es.length} élément{es.length > 1 ? "s" : ""} · <b style={{ color: "var(--ink)" }}>{nf(kc, 0)} kcal</b></span></div>
             {es.map((e) => <div className="item" key={e.id}>
               <button className="ghost grow" style={{ justifyContent: "flex-start", textAlign: "left", padding: 0 }} onClick={() => setEdit(e)} aria-label={`Modifier ${e.label}`}>
                 <span><b>{e.label}</b> <span className="muted small">{nf(e.qty)} {e.unit === "portion" ? "portion(s)" : e.unit}</span>{e.incomplete ? <> <span className="badge warn">macros incomplètes</span></> : null}</span></button>
               <span className="nowrap small">{nf(e.kcal, 0)} kcal</span></div>)}
-          </div>))}
+            <div className="row" style={{ gap: ".3rem", marginTop: 4 }}>
+              <button className="ghost" style={{ minHeight: 36 }} onClick={() => onAdd(c)}>＋ Ajouter</button>
+              <button className="ghost" style={{ minHeight: 36 }} onClick={() => setMeal({ kind: "reuse", category: c })}>Réutiliser</button>
+              <button className="ghost" style={{ minHeight: 36 }} onClick={() => setMeal({ kind: "save", category: c })}>Mémoriser</button>
+              <button className="ghost" style={{ minHeight: 36, color: "var(--danger)" }} onClick={() => setMeal({ kind: "delete", category: c })}>Supprimer</button>
+            </div>
+          </div>); })}
       {day.entries.length > 0 && <div className="row" style={{ marginTop: 10 }}>
         <button className="primary" onClick={() => onAdd()}>＋ Ajouter</button>
         {day.closed ? <button onClick={() => act(() => api(`/days/${date}/close`, { body: { closed: false } }), "Journée rouverte")}>Rouvrir la journée</button> : <button onClick={() => act(() => api(`/days/${date}/close`, { body: { closed: true } }), "Journée marquée terminée")}>Marquer la journée terminée</button>}
       </div>}
+      {meal && <MealAction day={day} date={date} meal={meal} onClose={() => setMeal(null)} onDone={() => { setMeal(null); reload(); }} />}
       {edit && <Modal title={edit.label} onClose={() => setEdit(null)}>
         <EditMeal e={edit} date={date} onDone={() => { setEdit(null); reload(); }} />
       </Modal>}
@@ -69,4 +81,32 @@ function EditMeal({ e, date, onDone }: { e: any; date: string; onDone: () => voi
     <p className="small muted">Si l’aliment ou la recette a été modifié depuis, vous pouvez recalculer ce repas. L’action est tracée.</p>
     <button onClick={() => run(() => api(`/meals/${e.id}/recalc`, { body: {} }), "Recalculé")}>Recalculer ce repas</button>
   </div>;
+}
+
+/** Réutiliser, mémoriser ou supprimer un repas complet (une date + une catégorie). */
+function MealAction({ day, date, meal, onClose, onDone }: { day: any; date: string; meal: { kind: "reuse" | "save" | "delete"; category: string }; onClose: () => void; onDone: () => void }) {
+  const [to, setTo] = useState(date), [cat, setCat] = useState(meal.category), [name, setName] = useState(`${meal.category} habituel`), [err, setErr] = useState<string | null>(null), [busy, setBusy] = useState(false);
+  const es = day.entries.filter((e: any) => e.category === meal.category);
+  const go = async (fn: () => Promise<any>, msg: string) => { setBusy(true); setErr(null); try { await fn(); toast(msg); onDone(); } catch (e: any) { setErr(e.message); setBusy(false); } };
+  return (
+    <Modal title={meal.kind === "reuse" ? `Réutiliser « ${meal.category} »` : meal.kind === "save" ? "Mémoriser ce repas" : "Supprimer ce repas"} onClose={onClose}>
+      {err && <Notice kind="err">{err}</Notice>}
+      <p className="small muted">{es.map((e: any) => e.label).join(", ")}</p>
+      {meal.kind === "reuse" && <>
+        <p>Copie ce repas complet à une autre date, tel que noté (mêmes quantités et mêmes valeurs).</p>
+        <div className="inline"><Field label="Date"><input type="date" value={to} onChange={(e) => setTo(e.target.value)} /></Field><Field label="Comme repas"><input value={cat} onChange={(e) => setCat(e.target.value)} list="cats" /></Field></div>
+        <datalist id="cats">{CATEGORIES.map((c) => <option key={c} value={c} />)}</datalist>
+        <button className="primary" disabled={busy || !to || !cat.trim()} onClick={() => go(() => api("/meals-copy", { body: { from: date, category: meal.category, to, to_category: cat.trim() } }), `Repas copié le ${fmtDate(to)}`)}>Copier le repas</button>
+      </>}
+      {meal.kind === "save" && <>
+        <p>Retrouvez-le dans « Ajouter un repas → Repas déjà faits » pour le réutiliser en un geste, quantités modifiables.</p>
+        <Field label="Nom du repas type"><input value={name} onChange={(e) => setName(e.target.value)} maxLength={80} /></Field>
+        <button className="primary" disabled={busy || !name.trim()} onClick={() => go(() => api("/meal-templates", { body: { name: name.trim(), from: { date, category: meal.category } } }), "Repas type mémorisé")}>Mémoriser</button>
+      </>}
+      {meal.kind === "delete" && <>
+        <p>Supprimer les {es.length} élément{es.length > 1 ? "s" : ""} de « {meal.category} » pour cette journée ? La journée repassera en « partielle ».</p>
+        <div className="row"><button className="danger" disabled={busy} onClick={() => go(() => api("/meals-delete", { body: { date, category: meal.category } }), "Repas supprimé")}>Supprimer le repas</button><button onClick={onClose}>Annuler</button></div>
+      </>}
+    </Modal>
+  );
 }
