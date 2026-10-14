@@ -43,7 +43,7 @@ function Tip({ x, y, width, title, rows, note }: { x: number; y: number; width: 
   return (
     <div className="tip" role="status" style={{ top: 0, [right ? "right" : "left"]: right ? width - x + 12 : x + 12 } as React.CSSProperties}>
       <div className="d">{title}</div>
-      {rows.map((r) => <div className="r" key={r.name}><span className="k" style={{ borderColor: r.color }} /><span>{r.name}</span><b>{r.value}</b></div>)}
+      {rows.map((r) => <div className="r" key={r.name}><span className="k" style={{ background: r.color }} /><span>{r.name}</span><b>{r.value}</b></div>)}
       {note && <div className="small muted" style={{ marginTop: 2 }}>{note}</div>}
     </div>
   );
@@ -51,10 +51,10 @@ function Tip({ x, y, width, title, rows, note }: { x: number; y: number; width: 
 export function Key({ color, kind = "line", hollow }: { color: string; kind?: "line" | "dot" | "bar" | "tick"; hollow?: boolean }) {
   return (
     <svg className="k" width="18" height="10" aria-hidden="true">
-      {kind === "line" && <line x1="0" x2="18" y1="5" y2="5" stroke={color} strokeWidth="2" strokeLinecap="round" />}
+      {kind === "line" && <line x1="0" x2="18" y1="5" y2="5" stroke={color} strokeWidth="3" strokeLinecap="round" />}
       {kind === "dot" && <circle cx="9" cy="5" r="4" fill={color} />}
       {kind === "bar" && <rect x="3" y="0" width="12" height="10" rx="2" fill={color} opacity={hollow ? 0.38 : 1} />}
-      {kind === "tick" && <line x1="0" x2="18" y1="5" y2="5" stroke={color} strokeWidth="3" />}
+      {kind === "tick" && <line x1="1" x2="17" y1="5" y2="5" stroke={color} strokeWidth="3.5" strokeLinecap="round" />}
     </svg>
   );
 }
@@ -115,16 +115,16 @@ export function LineChart({ labels, tipTitles, series, unit = "", height = 210, 
           return (
             <g key={s.name}>
               {s.mode !== "dots" && s.area && segs.map((sg, k) => <path key={"a" + k} d={`M${sg[0][0]},${H - MARGIN.b} ${sg.map((p) => `L${p[0]},${p[1]}`).join(" ")} L${sg[sg.length - 1][0]},${H - MARGIN.b}Z`} fill={s.color} opacity={0.1} />)}
-              {s.mode !== "dots" && segs.map((sg, k) => sg.length > 1 && <polyline key={k} fill="none" stroke={s.color} strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" points={sg.map((p) => p.join(",")).join(" ")} />)}
-              {s.mode === "dots" && s.values.map((v, i) => v != null && <circle key={i} className="p" cx={X(i)} cy={Y(v)} r={4} fill={s.color} stroke="var(--bg)" strokeWidth={2} />)}
-              {s.mode !== "dots" && segs.map((sg, k) => sg.length === 1 && <circle key={"s" + k} cx={sg[0][0]} cy={sg[0][1]} r={4} fill={s.color} stroke="var(--bg)" strokeWidth={2} />)}
-              {s.endLabel && last && last[0] != null && (<g><circle cx={X(last[1])} cy={Y(last[0])} r={4.5} fill={s.color} stroke="var(--bg)" strokeWidth={2} />
+              {s.mode !== "dots" && segs.map((sg, k) => sg.length > 1 && <polyline key={k} fill="none" stroke={s.color} strokeWidth={3} strokeLinejoin="round" strokeLinecap="round" points={sg.map((p) => p.join(",")).join(" ")} />)}
+              {s.mode === "dots" && s.values.map((v, i) => v != null && <circle key={i} className="p" cx={X(i)} cy={Y(v)} r={5} fill={s.color} stroke="var(--card)" strokeWidth={2.5} />)}
+              {s.mode !== "dots" && segs.map((sg, k) => sg.length === 1 && <circle key={"s" + k} cx={sg[0][0]} cy={sg[0][1]} r={4} fill={s.color} stroke="var(--card)" strokeWidth={2.5} />)}
+              {s.endLabel && last && last[0] != null && (<g><circle cx={X(last[1])} cy={Y(last[0])} r={4.5} fill={s.color} stroke="var(--card)" strokeWidth={2.5} />
                 <text className="lbl" x={Math.min(X(last[1]) + 8, W - 4)} y={Y(last[0]) - 9} textAnchor={X(last[1]) > W - 60 ? "end" : "start"}>{fmt(last[0])}</text></g>)}
             </g>
           );
         })}
-        {hi != null && <g><line x1={X(hi)} x2={X(hi)} y1={MARGIN.t} y2={H - MARGIN.b} stroke="var(--ink)" strokeWidth={1} />
-          {series.map((s) => { const v = s.values[hi]; return v == null ? null : <circle key={s.name} cx={X(hi)} cy={Y(v)} r={5} fill={s.color} stroke="var(--bg)" strokeWidth={2} />; })}</g>}
+        {hi != null && <g><line x1={X(hi)} x2={X(hi)} y1={MARGIN.t} y2={H - MARGIN.b} stroke="var(--ink)" strokeOpacity={0.5} strokeWidth={1.5} strokeLinecap="round" />
+          {series.map((s) => { const v = s.values[hi]; return v == null ? null : <circle key={s.name} cx={X(hi)} cy={Y(v)} r={5} fill={s.color} stroke="var(--card)" strokeWidth={2.5} />; })}</g>}
       </svg>
       {hi != null && <Tip x={X(hi)} y={tipY} width={W} title={tipTitles?.[hi] ?? labels[hi]} rows={series.filter((s) => s.values[hi] != null).map((s) => ({ color: s.color, name: s.name, value: fmt(s.values[hi]) }))} note={notes?.(hi)} />}
     </div>
@@ -140,7 +140,7 @@ export function BarChart({ labels, tipTitles, bars, color = "var(--s1)", unit = 
   const vals = bars.flatMap((b) => [b.value, b.target]).filter((v): v is number => v != null);
   if (!vals.some((v) => v > 0) && !bars.some((b) => b.value != null)) return <p className="empty">Pas encore de données sur cette période.</p>;
   const ticks = niceTicks(0, Math.max(1, ...vals) * 1.05, 4), top = ticks[ticks.length - 1];
-  const iw = W - MARGIN.l - MARGIN.r, ih = H - MARGIN.t - MARGIN.b, slot = iw / n, bw = Math.min(24, Math.max(3, slot * 0.62));
+  const iw = W - MARGIN.l - MARGIN.r, ih = H - MARGIN.t - MARGIN.b, slot = iw / n, bw = Math.min(18, Math.max(3, slot * 0.62)), rr = Math.min(bw / 2, 7);
   const Y = (v: number) => MARGIN.t + ih * (1 - v / top), xl = xLabelIdx(n, W);
   const lastIdx = [...bars].map((b, i) => [b, i] as const).filter(([b]) => b.value != null).pop()?.[1];
   const key = (e: React.KeyboardEvent) => { if (e.key === "ArrowRight") setHi(Math.min(n - 1, (hi ?? -1) + 1)); else if (e.key === "ArrowLeft") setHi(Math.max(0, (hi ?? n) - 1)); else if (e.key === "Escape") setHi(null); else return; e.preventDefault(); };
@@ -158,8 +158,8 @@ export function BarChart({ labels, tipTitles, bars, color = "var(--s1)", unit = 
             const on = hi === i;
             return (
               <g key={i} opacity={hi != null && !on ? 0.55 : 1}>
-                {b.value != null && b.value > 0 && <path d={`M${cx(i) - bw / 2},${Y(0)} V${Y(b.value) + 4} q0,-4 4,-4 h${bw - 8} q4,0 4,4 V${Y(0)} Z`} fill={color} opacity={b.partial ? 0.38 : 1} />}
-                {b.target != null && <line x1={cx(i) - Math.max(bw / 2 + 2, 6)} x2={cx(i) + Math.max(bw / 2 + 2, 6)} y1={Y(b.target)} y2={Y(b.target)} stroke="var(--s2)" strokeWidth={3} />}
+                {b.value != null && b.value > 0 && <path d={`M${cx(i) - bw / 2},${Y(0)} V${Y(Math.max(b.value, 0)) + rr} q0,-${rr} ${rr},-${rr} h${bw - 2 * rr} q${rr},0 ${rr},${rr} V${Y(0)} Z`} fill={color} opacity={b.partial ? 0.38 : 1} />}
+                {b.target != null && <line x1={cx(i) - Math.max(bw / 2 + 2, 6)} x2={cx(i) + Math.max(bw / 2 + 2, 6)} y1={Y(b.target)} y2={Y(b.target)} stroke="var(--s2)" strokeWidth={3.5} strokeLinecap="round" />}
                 {b.value == null && <circle cx={cx(i)} cy={Y(0) - 5} r={1.6} fill="var(--line)" />}
                 {showLast && i === lastIdx && b.value != null && <text className="lbl" x={cx(i)} y={Y(b.value) - 7} textAnchor={cx(i) > W - 40 ? "end" : "middle"}>{nfr(b.value, 0)}{unit}</text>}
               </g>
@@ -167,7 +167,7 @@ export function BarChart({ labels, tipTitles, bars, color = "var(--s1)", unit = 
           })}
           <line className="axis" x1={MARGIN.l} x2={W - MARGIN.r} y1={Y(0)} y2={Y(0)} />
           {labels.map((l, i) => xl.has(i) && <text key={i} x={cx(i)} y={H - 8} textAnchor={i === 0 ? "start" : i === n - 1 ? "end" : "middle"}>{l}</text>)}
-          {hi != null && <rect x={MARGIN.l + slot * hi} y={MARGIN.t} width={slot} height={ih} fill="var(--ink)" opacity={0.06} />}
+          {hi != null && <rect x={MARGIN.l + slot * hi} y={MARGIN.t} width={slot} height={ih} rx={10} fill="var(--ink)" opacity={0.07} />}
         </svg>
         {hi != null && (() => { const b = bars[hi]; const rows: TipRow[] = [{ color, name: valueName, value: b.value == null ? "—" : `${nfr(b.value, 0)}${unit}` }]; if (b.target != null) rows.push({ color: "var(--s2)", name: targetName, value: `${nfr(b.target, 0)}${unit}` }); return <Tip x={cx(hi)} y={b.value != null ? Y(b.value) - 30 : MARGIN.t} width={W} title={tipTitles?.[hi] ?? labels[hi]} rows={rows} note={b.note} />; })()}
       </div>
@@ -180,10 +180,10 @@ export function BarChart({ labels, tipTitles, bars, color = "var(--s1)", unit = 
 export function Stat({ label, value, unit, sub }: { label: string; value: ReactNode; unit?: string; sub?: ReactNode }) {
   return <div className="stat"><div className="lbl">{label}</div><div className="big">{value}{unit && <span className="unit">{unit}</span>}</div>{sub && <div className="sub">{sub}</div>}</div>;
 }
-export function Meter({ label, value, target, unit = "g" }: { label: string; value: number | null; target?: number | null; unit?: string }) {
+export function Meter({ label, value, target, unit = "g", color = "var(--ink)" }: { label: string; value: number | null; target?: number | null; unit?: string; color?: string }) {
   const pct = value != null && target ? Math.min(100, (value / target) * 100) : 0;
   return (
-    <div className="meter"><div className="top"><span>{label}</span><span>{value == null ? "—" : nfr(value, 0)}{target ? ` / ${nfr(target, 0)}` : ""} {unit}</span></div>
+    <div className="meter" style={{ ["--c" as string]: color }}><div className="top"><span><i className="dot" />{label}</span><span>{value == null ? "—" : nfr(value, 0)}{target ? ` / ${nfr(target, 0)}` : ""} {unit}</span></div>
       {target ? <div className="rail" role="progressbar" aria-label={label} aria-valuenow={Math.round(pct)} aria-valuemin={0} aria-valuemax={100}><i style={{ width: `${pct}%` }} /></div> : null}</div>
   );
 }

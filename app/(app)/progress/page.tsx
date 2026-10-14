@@ -46,7 +46,7 @@ function Overview({ range }: { range: string }) {
       {measured.length === 0 ? <Empty>Aucune pesée sur la période. Ajoutez-en une depuis l’onglet Poids.</Empty> :
         <LineChart unit=" kg" labels={d.weights.map((x: any) => fmtShort(x.date))} tipTitles={d.weights.map((x: any) => fmtDate(x.date))}
           notes={(i) => (d.weights[i].kg == null ? "Pas de pesée ce jour" : undefined)}
-          series={[{ name: "Moyenne 7 j", color: "var(--s1)", values: d.weights.map((x: any) => x.avg), endLabel: true }, { name: "Pesée de référence", color: "var(--s2)", values: d.weights.map((x: any) => x.kg), mode: "dots" }]} />}
+          series={[{ name: "Moyenne 7 j", color: "var(--s3)", values: d.weights.map((x: any) => x.avg), endLabel: true }, { name: "Pesée de référence", color: "var(--s2)", values: d.weights.map((x: any) => x.kg), mode: "dots" }]} />}
       {lastAvg && <p className="small muted" style={{ marginTop: 6 }}>Les jours sans pesée restent vides : rien n’est interpolé. La moyenne exige au moins 3 jours mesurés dans la fenêtre.</p>}
     </Figure>
 
@@ -65,7 +65,7 @@ function Overview({ range }: { range: string }) {
     </Figure>
   </div>;
 }
-const Legend2 = () => <Legend items={[{ label: "Moyenne mobile 7 jours", color: "var(--s1)", kind: "line" }, { label: "Pesée de référence", color: "var(--s2)", kind: "dot" }]} />;
+const Legend2 = () => <Legend items={[{ label: "Moyenne mobile 7 jours", color: "var(--s3)", kind: "line" }, { label: "Pesée de référence", color: "var(--s2)", kind: "dot" }]} />;
 
 function Weight() {
   const me = useMe();
@@ -117,7 +117,7 @@ function Exercises({ range }: { range: string }) {
         const ctx = `${kind === "pc" ? "poids du corps" : kind === "as" ? "assisté" : "charge externe"}${eq ? ` · ${eq}` : ""}${conv ? ` · charge ${conv.replace("_", " ")}` : ""}`;
         const name = kind === "ext" ? "Charge max" : "Répétitions max", u = kind === "ext" ? " kg" : "";
         return <Figure key={c.context} title={ctx} note="un point par séance" table={{ head: ["Date", name, "Volume (kg)"], rows: c.points.map((p: any) => [fmtShort(p.date), kind === "ext" ? nf(p.maxLoad, 1) : p.bestReps, nf(p.volume, 0)]) }}>
-          <LineChart unit={u} labels={c.points.map((p: any) => fmtShort(p.date))} series={[{ name, color: "var(--s1)", values: c.points.map((p: any) => (kind === "ext" ? p.maxLoad : p.bestReps)), endLabel: true, area: true }, { name: "Séance", color: "var(--s1)", values: c.points.map((p: any) => (kind === "ext" ? p.maxLoad : p.bestReps)), mode: "dots" }]} />
+          <LineChart unit={u} labels={c.points.map((p: any) => fmtShort(p.date))} series={[{ name, color: "var(--s2)", values: c.points.map((p: any) => (kind === "ext" ? p.maxLoad : p.bestReps)), endLabel: true, area: true }, { name: "Séance", color: "var(--s2)", values: c.points.map((p: any) => (kind === "ext" ? p.maxLoad : p.bestReps)), mode: "dots" }]} />
           <p className="small muted" style={{ marginTop: 4 }}>Seules les séries du même appareil et de la même convention de charge sont comparées.</p></Figure>; }))}
     </section>
     <section><h2 style={{ marginTop: 0 }}>Records</h2>

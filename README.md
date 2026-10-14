@@ -27,8 +27,8 @@ Variables (voir `.env.example`) : `DATABASE_PATH`, `ANTHROPIC_API_KEY` (optionne
 
 ## Design et graphiques
 
-Identité « carnet d'entraînement » : papier chaud, encre, un seul rouge signal, filets fins à la place des cartes, libellés en monospace, aucune icône emoji. Thème automatique, clair ou sombre (bouton en haut / dans la barre latérale).
-Les graphiques (`components/charts.tsx`) sont des SVG maison suivant la méthode dataviz : marques fines, une seule échelle, bulle de survol et lecture au clavier (flèches), légende dès 2 séries, jours incomplets en teinte claire + légende, et un tableau équivalent sous chaque graphique. Palette de données validée par le script de contraste/daltonisme en clair (`#c8321b`, `#2a6aa8`, `#a9740a` sur `#f2efe7`) et en sombre (`#e8573a`, `#4a86cc`, `#bf8718` sur `#14130f`).
+Identité chaleureuse et vivante : fond crème, encre aubergine, police Bricolage Grotesque (auto-hébergée via `@fontsource`, aucune requête vers un service tiers), formes organiques légèrement asymétriques, et **une couleur par rubrique** (jaune soleil = Aujourd'hui, tomate = Alimentation, violet = Entraînement, vert = Progression, bleu = Carnet, rose = Agent) qui teinte l'accent, les boutons et l'onglet actif. Barre de navigation flottante sur mobile, mascotte « Termi » (`components/Mascot.tsx`) dans les états vides et les moments clés, thème automatique/clair/sombre.
+Les graphiques (`components/charts.tsx`) suivent la méthode dataviz : une seule échelle, bulle de survol et lecture au clavier, légende dès 2 séries, jours incomplets en teinte claire, tableau équivalent sous chaque graphique. Couleurs de données (énergie `--s1`, entraînement `--s2`, poids/forme `--s3`) validées avec le script de contraste/daltonisme, en clair (`#d63d1f #6247e0 #0f8a74` sur `#fff7ec`, toutes paires) et en sombre (`#e5573a #8570ec #17967f` sur `#1d1630`).
 
 ## Architecture (variante « application intégrée » du §19)
 

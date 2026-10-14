@@ -1,4 +1,5 @@
 "use client";
+import Mascot from "./Mascot";
 import { useEffect, useState, type ReactNode } from "react";
 
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
@@ -16,7 +17,7 @@ export function Field({ label, children, hint }: { label: string; children: Reac
   return <div className="field"><label>{label}{hint && <span className="small"> — {hint}</span>}</label>{children}</div>;
 }
 export const Notice = ({ kind = "warn", children }: { kind?: "warn" | "err" | "okk" | "info"; children: ReactNode }) => <div className={`notice ${kind === "warn" ? "" : kind}`} role={kind === "err" ? "alert" : "status"}>{children}</div>;
-export const Empty = ({ children }: { children: ReactNode }) => <div className="empty">{children}</div>;
+export const Empty = ({ children, mood = "sleepy" }: { children: ReactNode; mood?: "happy" | "sleepy" | "wink" | "cheer" }) => <div className="empty"><Mascot mood={mood} size={52} /><div>{children}</div></div>;
 export const Loading = () => <p className="muted" role="status">Chargement…</p>;
 export const ErrorBox = ({ error, retry }: { error: string; retry?: () => void }) => <div className="notice err" role="alert">{error} {retry && <button onClick={retry}>Réessayer</button>}</div>;
 

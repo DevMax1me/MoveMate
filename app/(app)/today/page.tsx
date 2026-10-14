@@ -9,6 +9,8 @@ import MealAdder from "@/components/MealAdder";
 import WeightForm from "@/components/WeightForm";
 import { ErrorBox, Loading, Notice, toast } from "@/components/ui";
 
+const greet = () => { const h = new Date().getHours(); return h < 5 ? "Bonne nuit" : h < 12 ? "Bonjour" : h < 18 ? "Bon après-midi" : "Bonsoir"; };
+
 export default function Today() {
   const me = useMe();
   const router = useRouter();
@@ -21,18 +23,19 @@ export default function Today() {
   }
   return (
     <div>
-      <div className="row spread"><h1 style={{ margin: 0 }}>{date === me.today ? "Aujourd’hui" : "Journal"}</h1>
-        <div className="row"><button onClick={() => setDate(shiftDate(date, -1))} aria-label="Jour précédent">‹</button><button onClick={() => setDate(me.today)} disabled={date === me.today}>Aujourd’hui</button><button onClick={() => setDate(shiftDate(date, 1))} aria-label="Jour suivant">›</button></div></div>
-      <p className="muted cap">{fmtDate(date)}</p>
+      <div className="row spread" style={{ alignItems: "flex-start" }}>
+        <div><h1 style={{ marginBottom: ".4rem" }}>{date === me.today ? `${greet()}${me.name ? `, ${me.name}` : ""}` : "Le journal"}</h1>
+          <p className="muted cap" style={{ marginTop: 0 }}>{fmtDate(date)}</p></div>
+        <div className="row" role="group" aria-label="Changer de jour"><button className="round" onClick={() => setDate(shiftDate(date, -1))} aria-label="Jour précédent"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7" /></svg></button><button onClick={() => setDate(me.today)} disabled={date === me.today}>Aujourd’hui</button><button className="round" onClick={() => setDate(shiftDate(date, 1))} aria-label="Jour suivant"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7" /></svg></button></div></div>
       {error && <ErrorBox error={error} retry={reload} />}
       {!data ? (loading ? <Loading /> : null) : <>
-        <div className="grid g2" style={{ marginTop: 8 }}>
+        <div className="grid g2" style={{ marginTop: 14, alignItems: "start" }}>
           <div>
             <DayCard day={data.day} date={date} reload={reload} onAdd={(c) => setAdding(c ?? null)} />
           </div>
           <div className="stack">
             <div className="card">
-              <h2 style={{ margin: 0 }}>Séance</h2>
+              <h2 style={{ margin: "0 0 .4rem" }}>Séance</h2>
               {data.activeWorkout ? <div><p>Une séance est en cours : <b>{data.activeWorkout.name}</b></p><Link className="btn primary" href="/training">Reprendre la séance</Link></div>
                 : data.planned.length ? data.planned.map((p: any) => <div className="item" key={p.id}><div className="grow"><b>{p.routine_name}</b><div className="small muted">prévue {p.status === "reporte" ? "(reportée)" : "aujourd’hui"}</div></div><button className="primary" onClick={() => start(p)}>Démarrer</button></div>)
                   : <div><p className="muted">Aucune séance prévue.</p><div className="row"><Link className="btn primary" href="/training">Démarrer une routine</Link><Link className="btn" href="/training">Séance libre</Link></div></div>}

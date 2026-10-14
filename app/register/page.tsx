@@ -1,4 +1,5 @@
 "use client";
+import Mascot from "@/components/Mascot";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
@@ -14,9 +15,9 @@ export default function Register() {
   }
   return (
     <div className="main" id="contenu" style={{ maxWidth: 560, paddingBottom: 40 }}>
-      <div className="topbar"><Link className="word" href="/">TERMINATOR</Link></div>
+      <div className="topbar"><Link className="word" href="/"><Mascot size={36} mood="wink" color="var(--sun)" />terminator</Link></div>
       <h1>Créer un compte</h1>
-      <form className="card" style={{ paddingTop: 18 }} onSubmit={submit}>
+      <form className="card" onSubmit={submit}>
         {err && <Notice kind="err">{err}</Notice>}
         <Field label="Prénom ou pseudo" hint="facultatif"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoComplete="nickname" /></Field>
         <Field label="Adresse électronique"><input type="email" autoComplete="email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>

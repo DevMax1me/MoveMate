@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, useApi, nf } from "@/lib/client";
 import { Empty, ErrorBox, Loading, Notice, Tabs, toast } from "@/components/ui";
 import { useMe } from "@/components/Shell";
+import Mascot from "@/components/Mascot";
 
 export default function Agent() {
   const me = useMe();
@@ -14,7 +15,7 @@ export default function Agent() {
   const s = st.data;
   async function toggle(enabled: boolean, purge = false) { setBusy(true); try { await api("/me/ai", { body: { enabled, purge } }); toast(enabled ? "Agent activé" : "Agent désactivé : vos journaux restent utilisables"); location.reload(); } catch (e: any) { toast(e.message); setBusy(false); } }
   if (!s.ai_enabled) return <div><h1>Mon agent</h1>
-    <div className="card stack"><p>L’agent propose des bilans expliqués, des recettes et des routines adaptées à votre profil. Il <b>propose</b> ; rien n’est écrit dans votre journal sans votre confirmation.</p>
+    <div className="card stack"><div className="row" style={{ alignItems: "center", gap: 14 }}><Mascot mood="wink" size={72} color="var(--pink)" /><b style={{ fontSize: "1.2rem", letterSpacing: "-.02em" }}>Termi, ton petit compagnon de carnet</b></div><p>L’agent propose des bilans expliqués, des recettes et des routines adaptées à votre profil. Il <b>propose</b> ; rien n’est écrit dans votre journal sans votre confirmation.</p>
       <Notice kind="info"><b>Ce qui est transmis :</b> {s.transmitted}<br /><b>Finalité :</b> reformuler des réponses déjà calculées. <b>Conservation :</b> conversations {s.retentionDays} jours ; faits mémorisés jusqu’à retrait. Aucune réutilisation pour entraîner un modèle. Retirer l’activation arrête les envois.</Notice>
       <p className="small muted">L’agent ne diagnostique pas, ne prescrit pas, ne garantit aucun résultat. Sans l’agent, tous vos journaux, recettes et routines restent utilisables.</p>
       <button className="primary" disabled={busy} onClick={() => toggle(true)}>Activer l’agent</button></div></div>;

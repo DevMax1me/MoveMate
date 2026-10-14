@@ -1,9 +1,10 @@
+import Mascot from "@/components/Mascot";
 import Link from "next/link";
 export const metadata = { title: "Confidentialité" };
 export default function Privacy() {
   return (
     <div className="main" id="contenu" style={{ maxWidth: 560, paddingBottom: 40 }}>
-      <div className="topbar"><Link className="word" href="/">TERMINATOR</Link></div>
+      <div className="topbar"><Link className="word" href="/"><Mascot size={36} mood="wink" color="var(--sun)" />terminator</Link></div>
       <h1>Confidentialité et protection des données</h1>
       <p className="notice">Version de travail : le texte juridique définitif (base légale, responsable de traitement, hébergement, AIPD) doit être validé par un interlocuteur qualifié avant ouverture publique.</p>
       <h2>Nature des données</h2>
