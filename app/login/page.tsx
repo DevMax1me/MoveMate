@@ -13,9 +13,10 @@ export default function Login() {
     try { await api("/auth/login", { body: { email, password } }); router.replace("/today"); } catch (x: any) { setErr(x.message); } finally { setBusy(false); }
   }
   return (
-    <div className="pub" id="contenu">
+    <div className="main" id="contenu" style={{ maxWidth: 560, paddingBottom: 40 }}>
+      <div className="topbar"><Link className="word" href="/">TERMINATOR</Link></div>
       <h1>Connexion</h1>
-      <form className="card" onSubmit={submit}>
+      <form className="card" style={{ paddingTop: 18 }} onSubmit={submit}>
         {err && <Notice kind="err">{err}</Notice>}
         <Field label="Adresse électronique"><input type="email" autoComplete="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>
         <Field label="Mot de passe"><input type="password" autoComplete="current-password" required value={password} onChange={(e) => setPassword(e.target.value)} /></Field>

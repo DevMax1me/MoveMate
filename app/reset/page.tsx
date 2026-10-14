@@ -16,9 +16,10 @@ function Inner() {
     } catch (x: any) { setErr(x.message); }
   }
   return (
-    <div className="pub" id="contenu">
+    <div className="main" id="contenu" style={{ maxWidth: 560, paddingBottom: 40 }}>
+      <div className="topbar"><Link className="word" href="/">TERMINATOR</Link></div>
       <h1>{token ? "Nouveau mot de passe" : "Mot de passe oublié"}</h1>
-      <form className="card" onSubmit={go}>
+      <form className="card" style={{ paddingTop: 18 }} onSubmit={go}>
         {err && <Notice kind="err">{err}</Notice>}{msg && <Notice kind="okk">{msg}</Notice>}
         {token ? <Field label="Nouveau mot de passe" hint="10 caractères minimum"><input type="password" minLength={10} required value={pw} onChange={(e) => setPw(e.target.value)} autoComplete="new-password" /></Field>
           : <Field label="Adresse électronique"><input type="email" required value={email} onChange={(e) => setEmail(e.target.value)} /></Field>}

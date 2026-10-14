@@ -25,6 +25,11 @@ Le **premier compte créé devient administrateur** (amorçage) ; les suivants s
 
 Variables (voir `.env.example`) : `DATABASE_PATH`, `ANTHROPIC_API_KEY` (optionnel), `AGENT_MODEL`, `AGENT_DAILY_QUOTA`.
 
+## Design et graphiques
+
+Identité « carnet d'entraînement » : papier chaud, encre, un seul rouge signal, filets fins à la place des cartes, libellés en monospace, aucune icône emoji. Thème automatique, clair ou sombre (bouton en haut / dans la barre latérale).
+Les graphiques (`components/charts.tsx`) sont des SVG maison suivant la méthode dataviz : marques fines, une seule échelle, bulle de survol et lecture au clavier (flèches), légende dès 2 séries, jours incomplets en teinte claire + légende, et un tableau équivalent sous chaque graphique. Palette de données validée par le script de contraste/daltonisme en clair (`#c8321b`, `#2a6aa8`, `#a9740a` sur `#f2efe7`) et en sombre (`#e8573a`, `#4a86cc`, `#bf8718` sur `#14130f`).
+
 ## Architecture (variante « application intégrée » du §19)
 
 - **Next.js 15 (App Router) + TypeScript** : interface React et API dans un seul déploiement. Les règles métier sont

@@ -70,10 +70,14 @@ export function mountStats(r: Router) {
     const from = query.get("from") ? dateStr(query.get("from")) : addDays(to, -(Number(range) || 30) + 1);
     // Poids mesuré + moyenne mobile avec nombre de mesures ; aucun jour fictif.
     const ref = refWeights(user.id, addDays(from, -6), to);
-    const weights = ref.filter((p) => p.date >= from).map((p) => {
-      const win = ref.filter((x) => x.date >= addDays(p.date, -6) && x.date <= p.date);
-      return { date: p.date, kg: p.kg, avg: win.length >= 3 ? win.reduce((a, x) => a + x.kg, 0) / win.length : null, n: win.length };
-    });
+    // Une ligne par jour calendaire : valeur mesurée ou null. La moyenne mobile n'existe que si la fenêtre J−6..J compte ≥ 3 jours mesurés ;
+    // aucune pesée n'est inventée pour les jours absents.
+    const byDate = new Map(ref.map((p) => [p.date, p.kg]));
+    const weights = [] as { date: string; kg: number | null; avg: number | null; n: number }[];
+    for (let d = from; d <= to; d = addDays(d, 1)) {
+      const win = ref.filter((x) => x.date >= addDays(d, -6) && x.date <= d);
+      weights.push({ date: d, kg: byDate.get(d) ?? null, avg: win.length >= 3 ? win.reduce((a, x) => a + x.kg, 0) / win.length : null, n: win.length });
+    }
     const intake = [] as any[];
     for (let d = from; d <= to; d = addDays(d, 1)) {
       const i = dayInfo(user.id, d);

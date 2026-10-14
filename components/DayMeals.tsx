@@ -3,6 +3,7 @@ import { useState } from "react";
 import { api, nf, shiftDate, fmtDate } from "@/lib/client";
 import { Field, Modal, Notice, toast } from "./ui";
 import { parseNum } from "@/lib/calc";
+import { Meter } from "./charts";
 
 export const STATE_LABEL: Record<string, [string, string]> = { non_renseignee: ["non renseignée", ""], partielle: ["partielle", "warn"], terminee: ["terminée", "ok"] };
 
@@ -17,12 +18,19 @@ export function DayCard({ day, date, reload, onAdd }: { day: any; date: string; 
   async function copyPrev() { await act(async () => { const r = await api("/meals-copy", { body: { from: shiftDate(date, -1), to: date } }); if (!r.copied) throw new Error("Rien à copier depuis la veille."); }, "Journée de la veille copiée"); }
   return (
     <div className="card">
-      <div className="row spread"><h2 style={{ margin: 0 }}>Repas</h2><span className={`badge ${kind}`}>Journée {lbl}</span></div>
+      <div className="row spread"><h2 style={{ margin: 0 }}>Repas</h2><span className={`badge ${kind}`}>{lbl}</span></div>
       {err && <Notice kind="err">{err}</Notice>}
-      <div className="grid g3" style={{ margin: ".6rem 0" }}>
-        <div><div className="big">{nf(t.kcal, 0)}<span className="unit">kcal</span></div><div className="small muted">{day.goal?.kcal != null ? `cible ${nf(day.goal.kcal, 0)} kcal` : "aucune cible"}</div></div>
-        <div><div className="big">{day.remaining == null ? "—" : nf(Math.abs(day.remaining), 0)}<span className="unit">{day.remaining == null ? "" : day.remaining < 0 ? "kcal de dépassement" : "kcal restantes"}</span></div></div>
-        <div className="small"><div>Protéines <b>{nf(t.protein)}</b> g{day.goal?.protein ? ` / ${nf(day.goal.protein, 0)}` : ""}</div><div>Glucides <b>{nf(t.carbs)}</b> g{day.goal?.carbs ? ` / ${nf(day.goal.carbs, 0)}` : ""}</div><div>Lipides <b>{nf(t.fat)}</b> g{day.goal?.fat ? ` / ${nf(day.goal.fat, 0)}` : ""}</div></div>
+      <div className="grid g2" style={{ margin: "10px 0 14px", alignItems: "end" }}>
+        <div>
+          <div className="stat" style={{ border: 0, padding: 0, margin: 0 }}><div className="lbl">{day.remaining == null ? "Énergie connue" : day.remaining < 0 ? "Dépassement" : "Reste aujourd’hui"}</div></div>
+          <div className="hero">{day.remaining == null ? nf(t.kcal, 0) : nf(Math.abs(day.remaining), 0)}<span className="unit">kcal</span></div>
+          <p className="small muted">{day.goal?.kcal != null ? `${nf(t.kcal, 0)} sur ${nf(day.goal.kcal, 0)} kcal de cible` : "aucune cible calorique définie"}</p>
+        </div>
+        <div>
+          <Meter label="Protéines" value={t.protein} target={day.goal?.protein} />
+          <Meter label="Glucides" value={t.carbs} target={day.goal?.carbs} />
+          <Meter label="Lipides" value={t.fat} target={day.goal?.fat} />
+        </div>
       </div>
       {day.macrosIncomplete && day.entries.length > 0 && <p><span className="badge warn">macros incomplètes</span> <span className="small muted">Les valeurs inconnues ne sont pas comptées comme 0 : ces totaux sont des minimums connus.</span></p>}
       {day.estimated && <p><span className="badge warn">dont énergie estimée</span></p>}

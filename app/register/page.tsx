@@ -13,9 +13,10 @@ export default function Register() {
     try { await api("/auth/register", { body: { ...f, tz: Intl.DateTimeFormat().resolvedOptions().timeZone } }); router.replace("/account?welcome=1"); } catch (x: any) { setErr(x.message); } finally { setBusy(false); }
   }
   return (
-    <div className="pub" id="contenu">
+    <div className="main" id="contenu" style={{ maxWidth: 560, paddingBottom: 40 }}>
+      <div className="topbar"><Link className="word" href="/">TERMINATOR</Link></div>
       <h1>Créer un compte</h1>
-      <form className="card" onSubmit={submit}>
+      <form className="card" style={{ paddingTop: 18 }} onSubmit={submit}>
         {err && <Notice kind="err">{err}</Notice>}
         <Field label="Prénom ou pseudo" hint="facultatif"><input value={f.name} onChange={(e) => setF({ ...f, name: e.target.value })} autoComplete="nickname" /></Field>
         <Field label="Adresse électronique"><input type="email" autoComplete="email" required value={f.email} onChange={(e) => setF({ ...f, email: e.target.value })} /></Field>
