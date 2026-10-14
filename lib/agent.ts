@@ -88,7 +88,7 @@ export function proposeRecipe(userId: string, opts: { query?: string } = {}): Ge
   if (!best) return { ok: false, conflict: `Aucune recette ne respecte à la fois vos contraintes (${[maxTime != null ? `${maxTime} min max` : "", ls.budget ? `budget ${ls.budget}` : "", strictExclusions(ls).length ? `exclusions : ${strictExclusions(ls).join(", ")}` : ""].filter(Boolean).join(" ; ") || "aucune"}). Je ne contourne pas vos exclusions : souhaitez-vous assouplir le temps, le budget ou une exclusion ? (${reasonsOut.slice(0, 3).join(" ; ")})` };
   const { tpl, ings } = best;
   const draft: RecipeDraft = { title: `${tpl.title} : ${ings.map((i) => i.name.toLowerCase()).join(", ")}`, servings: people, time_min: tpl.time, tags: tpl.tags, steps: tpl.steps, ingredients: ings };
-  const uses = [maxTime != null ? `temps de préparation max : ${maxTime} min` : "temps de préparation : non renseigné (aucune limite supposée)", ls.budget ? `budget : ${ls.budget}` : "budget : non renseigné", `convives : ${people}`, strictExclusions(ls).length ? `exclusions respectées : ${strictExclusions(ls).join(", ")}` : "aucune exclusion déclarée"];
+  const uses = [maxTime != null ? `temps de préparation : ${maxTime} min au plus` : "temps de préparation : non renseigné (aucune limite supposée)", ls.budget ? `budget : ${ls.budget}` : "budget : non renseigné", `convives : ${people}`, strictExclusions(ls).length ? `exclusions respectées : ${strictExclusions(ls).join(", ")}` : "aucune exclusion déclarée"];
   return { ok: true, draft, uses, rationale: `Recette compatible avec votre profil. Les quantités sont des points de départ : vérifiez-les, elles ne remplacent pas votre choix. Les valeurs nutritionnelles seront calculées par le service après enregistrement.` };
 }
 
@@ -136,7 +136,7 @@ export function proposeRoutine(userId: string, opts: { minutes?: number; place?:
   const est = estimateMinutes(items);
   if (est > maxMin) return { ok: false, conflict: `Même une structure minimale dépasse vos ${maxMin} min. Souhaitez-vous allonger la durée ?` };
   return { ok: true, draft: { name: `Séance ${place === "gym" ? "salle" : "maison"} ${items.length} exercices`, place, items, estimated_min: est },
-    uses: [`matériel : ${equipment.join(", ") || "aucun"}${gym ? " + accès salle" : ""}`, `durée max : ${maxMin} min`, `niveau : ${LEVELS[userLevel]}`, `lieu : ${place === "gym" ? "salle" : "maison"}`],
+    uses: [`matériel : ${equipment.join(", ") || "aucun"}${gym ? " + accès salle" : ""}`, `durée de séance : ${maxMin} min au plus`, `niveau : ${LEVELS[userLevel]}`, `lieu : ${place === "gym" ? "salle" : "maison"}`],
     rationale: `Structure issue du catalogue (un mouvement jambes/poussée/tirage/tronc, durée estimée ${est} min). Les répétitions et les charges restent à définir par vous ; rien n'est prescrit.` };
 }
 export function validateRoutineDraft(userId: string, d: any): string[] {

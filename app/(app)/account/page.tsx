@@ -44,7 +44,7 @@ function Profile() {
   if (error) return <ErrorBox error={error} retry={reload} />;
   if (!f) return <Loading />;
   const s = (k: string, v: any) => setF({ ...f, [k]: v });
-  const essentials: [string, boolean][] = [["votre objectif", !!f.goal], ["votre niveau", !!f.level], ["votre matériel", f.equipment.length > 0 || f.gym], ["vos séances par semaine", f.sessions_per_week !== ""], ["la durée max d’une séance", f.max_session_min !== ""]];
+  const essentials: [string, boolean][] = [["votre objectif", !!f.goal], ["votre niveau", !!f.level], ["votre matériel", f.equipment.length > 0 || f.gym], ["vos séances par semaine", f.sessions_per_week !== ""], ["le temps dont vous disposez par séance", f.max_session_min !== ""]];
   const fillExample = () => {
     const ex: Record<string, any> = { goal: "habitudes plus régulières", level: "débutant", equipment: ["haltères", "élastiques"], sessions_per_week: 3, max_session_min: 40, schedule: "décalés", work: "assis", meal_categories: "Petit-déjeuner, Déjeuner, Dîner, Collation", excluded_foods: "porc", liked_foods: "riz, poulet, fruits", disliked_foods: "brocoli", budget: "moyen", cook_time_max_min: 25, people: 2 };
     const empty = (v: any) => v === "" || v == null || (Array.isArray(v) && !v.length);
@@ -75,15 +75,15 @@ function Profile() {
       <Choice label="Ma priorité en ce moment" value={f.goal} onChange={(v) => s("goal", v)} options={GOALS} />
     </Section>
 
-    <Section n={3} title="Votre pratique sportive" tag="essentiel" why="Ces informations servent à ne vous proposer que des séances réalistes pour vous : faisables avec votre matériel, dans le temps dont vous disposez." uses="construire des routines compatibles avec votre matériel, votre niveau et la durée maximale indiquée.">
+    <Section n={3} title="Votre pratique sportive" tag="essentiel" why="Ces informations servent à ne vous proposer que des séances réalistes pour vous : faisables avec votre matériel, dans le temps dont vous disposez." uses="construire des routines compatibles avec votre matériel, votre niveau et le temps que vous avez indiqué.">
       <Choice label="Mon niveau" value={f.level} onChange={(v) => s("level", v)} options={LEVELS} />
       <div className="field"><label>Matériel dont je dispose</label>
         <div className="grid g2" style={{ gap: 0 }}>{data.equipmentOptions.map((e: string) => <label className="chk" key={e} style={{ alignItems: "flex-start", padding: ".35rem 0" }}><input type="checkbox" checked={f.equipment.includes(e)} onChange={(x) => s("equipment", x.target.checked ? [...f.equipment, e] : f.equipment.filter((y: string) => y !== e))} /><span>{e}<span className="small muted" style={{ display: "block" }}>{EQUIP_HELP[e]}</span></span></label>)}</div>
         <label className="chk" style={{ alignItems: "flex-start" }}><input type="checkbox" checked={f.gym} onChange={(e) => s("gym", e.target.checked)} /><span>J’ai accès à une salle de sport<span className="small muted" style={{ display: "block" }}>cela débloque les exercices avec barre, rack et machines</span></span></label>
         <p className="small phelp">Aucun matériel ? Ne cochez rien : l’agent proposera des exercices au poids du corps.</p></div>
       <div className="inline num">
-        <HelpField label="Séances par semaine" value={String(f.sessions_per_week)} onChange={(v) => s("sessions_per_week", v)} inputMode="numeric" placeholder="3" hint="Un nombre réaliste, pas idéal. 2 régulières valent mieux que 5 abandonnées." example="3" />
-        <HelpField label="Durée max d’une séance (min)" value={String(f.max_session_min)} onChange={(v) => s("max_session_min", v)} inputMode="numeric" placeholder="40" hint="Échauffement et repos compris. Les routines proposées ne dépasseront pas cette durée." example="40" />
+        <HelpField label="Combien de séances par semaine ?" value={String(f.sessions_per_week)} onChange={(v) => s("sessions_per_week", v)} inputMode="numeric" placeholder="3" unit="séances" hint="Un nombre réaliste, pas idéal. 2 régulières valent mieux que 5 abandonnées." example="3" />
+        <HelpField label="Combien de temps par séance ?" value={String(f.max_session_min)} onChange={(v) => s("max_session_min", v)} inputMode="numeric" placeholder="40" unit="minutes" hint="Le temps dont vous disposez, échauffement et repos compris. Les routines proposées tiendront dedans." example="40" />
       </div>
     </Section>
 
@@ -97,8 +97,8 @@ function Profile() {
       <HelpField label="Mes repas de la journée" list value={f.meal_categories} onChange={(v) => s("meal_categories", v)} placeholder="Petit-déjeuner, Déjeuner, Dîner" suggestions={["Petit-déjeuner", "Déjeuner", "Dîner", "Collation", "Repas de nuit", "Avant l’entraînement"]} hint="Les noms qui vous correspondent. Vous travaillez de nuit ? Mettez « Repas de nuit » : rien ne suppose un repas à midi." example="Petit-déjeuner, Déjeuner, Dîner, Collation" />
       <Choice label="Mon budget courses" value={f.budget} onChange={(v) => s("budget", v)} options={BUDGETS} />
       <div className="inline num">
-        <HelpField label="Temps de cuisine max (min)" value={String(f.cook_time_max_min)} onChange={(v) => s("cook_time_max_min", v)} inputMode="numeric" placeholder="25" hint="Par repas. Les recettes proposées respectent cette limite." example="25" />
-        <HelpField label="Nombre de convives" value={String(f.people)} onChange={(v) => s("people", v)} inputMode="numeric" placeholder="2" hint="Les quantités des recettes proposées sont calculées pour ce nombre." example="2" />
+        <HelpField label="Combien de temps pour cuisiner ?" value={String(f.cook_time_max_min)} onChange={(v) => s("cook_time_max_min", v)} inputMode="numeric" placeholder="25" unit="minutes" hint="Par repas. Les recettes proposées seront prêtes dans ce délai." example="25" />
+        <HelpField label="Pour combien de personnes ?" value={String(f.people)} onChange={(v) => s("people", v)} inputMode="numeric" placeholder="2" unit="personnes" hint="Les quantités des recettes proposées sont calculées pour ce nombre." example="2" />
       </div>
       <HelpField label="Allergies ou intolérances (information sensible)" list value={f.allergies} onChange={(v) => s("allergies", v)} placeholder="arachide" suggestions={["arachide", "fruits à coque", "lait", "œuf", "gluten", "soja", "crustacés"]}
         hint="Facultatif. Sert uniquement à filtrer les suggestions. Aucune garantie sur les traces ou la composition réelle d’un produit : vérifiez toujours l’étiquette. N’indiquez rien d’autre de médical." />
@@ -117,7 +117,7 @@ function Profile() {
       <label className="chk"><input type="checkbox" checked={f.coaching.silent} onChange={(e) => s("coaching", { ...f.coaching, silent: e.target.checked })} />Silence : ne pas me solliciter pour l’instant</label>
     </Section>
 
-    <div className="row" style={{ position: "sticky", bottom: 100, zIndex: 5 }}><button className="primary" onClick={save}>Enregistrer mon profil</button>{data.history.length > 1 && <span className="small muted">{data.history.length} versions conservées</span>}</div>
+    <div className="savebar"><span className="small muted">{data.history.length > 1 ? `${data.history.length} versions conservées. ` : ""}Vos réponses ne sont enregistrées qu’en validant ici.</span><button className="primary" onClick={save}>Enregistrer mon profil</button></div>
   </div>;
 }
 

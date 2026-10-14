@@ -23,8 +23,8 @@ export function Section({ n, title, tag, why, uses, children }: { n: number; tit
 }
 
 /** Champ texte avec consigne, exemple à reprendre en un clic et, pour les listes, des suggestions à cocher. */
-export function HelpField({ label, value, onChange, hint, example, placeholder, suggestions, list, type = "text", inputMode, rows }: {
-  label: string; value: string; onChange: (v: string) => void; hint?: string; example?: string; placeholder?: string; suggestions?: string[]; list?: boolean; type?: string; inputMode?: "numeric" | "decimal"; rows?: number;
+export function HelpField({ label, value, onChange, hint, example, placeholder, suggestions, list, type = "text", inputMode, rows, unit }: {
+  label: string; value: string; onChange: (v: string) => void; hint?: string; example?: string; placeholder?: string; suggestions?: string[]; list?: boolean; type?: string; inputMode?: "numeric" | "decimal"; rows?: number; unit?: string;
 }) {
   const [showEx, setShowEx] = useState(false);
   const current = list ? splitList(value) : [];
@@ -34,7 +34,7 @@ export function HelpField({ label, value, onChange, hint, example, placeholder, 
   return (
     <div className="field">
       <label htmlFor={id}>{label}</label>
-      {rows ? <textarea id={id} rows={rows} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} /> : <input id={id} type={type} inputMode={inputMode} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />}
+      {rows ? <textarea id={id} rows={rows} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} /> : unit ? <div className="unitwrap"><input id={id} type={type} inputMode={inputMode} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} /><span aria-hidden="true">{unit}</span></div> : <input id={id} type={type} inputMode={inputMode} value={value} placeholder={placeholder} onChange={(e) => onChange(e.target.value)} />}
       {hint && <p className="small phelp">{hint}</p>}
       {suggestions && <div className="chips" role="group" aria-label={`Suggestions pour ${label}`}>{suggestions.map((s) => <button type="button" key={s} className="chip-b" aria-pressed={has(s)} onClick={() => toggle(s)}>{has(s) ? "✓ " : "+ "}{s}</button>)}</div>}
       {example && <div className="small" style={{ marginTop: 6 }}>
