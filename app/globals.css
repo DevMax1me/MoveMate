@@ -135,7 +135,7 @@ table{width:100%;border-collapse:collapse;font-size:.9rem}th,td{padding:.45rem .
 .more svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
 
 /* aides du profil */
-.psec{padding:20px 20px 12px}.psec+.psec{margin-top:0}.pnum{flex:none;width:32px;height:32px;border-radius:50% 46% 52% 48%;background:var(--zone);color:var(--zone-ink);display:grid;place-items:center;font-weight:800;font-size:.95rem}
+.psec{padding:20px 20px 12px}.stack>.card+.card,.stack>.psec+.psec{margin-top:1.4rem}.pnum{flex:none;width:32px;height:32px;border-radius:50% 46% 52% 48%;background:var(--zone);color:var(--zone-ink);display:grid;place-items:center;font-weight:800;font-size:.95rem}
 .phelp{color:var(--muted);margin:.35rem .2rem 0}.chips{display:flex;flex-wrap:wrap;gap:.4rem;margin-top:.55rem}
 .chip-b{min-height:38px;padding:.2rem .9rem;font-size:.88rem;font-weight:650;border-radius:999px;background:var(--card)}
 button.chip-b[aria-pressed="true"],button.chip-b[aria-checked="true"]{background:var(--zone);color:var(--zone-ink);border-color:transparent}
