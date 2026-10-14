@@ -22,14 +22,14 @@ export default function Exercises() {
       <select aria-label="Matériel" value={eq} onChange={(e) => { setEq(e.target.value); setShown(60); }}><option value="">Tout matériel</option><option value="none">Sans matériel</option>{["haltères", "kettlebell", "barre", "banc", "rack", "smith", "poulie", "machine", "barre de traction", "barres parallèles", "anneaux", "élastique", "swiss ball", "medecine ball", "roue abdominale", "step", "vélo", "rameur", "tapis"].map((t) => <option key={t}>{t}</option>)}</select>
       <label className="chk"><input type="checkbox" checked={compat} onChange={(e) => setCompat(e.target.checked)} />Compatibles avec mon matériel</label></div>
     {error && <ErrorBox error={error} retry={reload} />}
-    {data?.exercises.length === 0 && <Empty>Aucun exercice ne correspond à ces filtres.</Empty>}
+    {data?.exercises.length === 0 && <Empty>Aucun exercice ne correspond à ces filtres.{q.trim() && <div style={{ marginTop: 8 }}><button className="primary" onClick={() => setCreate(true)}>Créer « {q.trim()} » en exercice privé</button></div>}</Empty>}
     <div className="grid g2">{data?.exercises.slice(0, shown).map((e: any) => <button key={e.id} className="card" style={{ textAlign: "left", display: "block", width: "100%" }} onClick={() => setSel(e.ex_key)}>
       <b>{e.name}</b>{e.alias && <span className="muted small"> · {e.alias}</span>}
       <div className="small muted">{e.movement} · {e.primary_muscles.join(", ")} · {e.level}</div>
       <div className="row" style={{ marginTop: 4, gap: ".3rem" }}>{e.place !== "gym" && <span className="badge">maison</span>}{e.place !== "home" && <span className="badge">salle</span>}<span className="badge">{e.equipment.length ? e.equipment.join(", ") : "sans matériel"}</span>{!e.compatible && <span className="badge warn">matériel manquant</span>}{e.private && <span className="badge acc">privé</span>}</div></button>)}</div>
     {data && data.exercises.length > shown && <div className="row" style={{ justifyContent: "center", marginTop: 18 }}><button onClick={() => setShown(shown + 60)}>Afficher plus ({data.exercises.length - shown} restants)</button></div>}
     {sel && <Detail k={sel} onClose={() => setSel(null)} onPick={setSel} />}
-    {create && <CreateEx onClose={() => setCreate(false)} onSaved={() => { setCreate(false); reload(); }} />}
+    {create && <CreateEx initialName={q.trim()} onClose={() => setCreate(false)} onSaved={() => { setCreate(false); reload(); }} />}
   </div>;
 }
 
@@ -51,8 +51,8 @@ function Detail({ k, onClose, onPick }: { k: string; onClose: () => void; onPick
   </Modal>;
 }
 
-function CreateEx({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [f, setF] = useState<any>({ name: "", movement: "autre", primary_muscles: "", equipment: "", place: "both", level: "débutant", metric: "reps_load", steps: "" }), [err, setErr] = useState<string | null>(null);
+function CreateEx({ initialName = "", onClose, onSaved }: { initialName?: string; onClose: () => void; onSaved: () => void }) {
+  const [f, setF] = useState<any>({ name: initialName, movement: "autre", primary_muscles: "", equipment: "", place: "both", level: "débutant", metric: "reps_load", steps: "" }), [err, setErr] = useState<string | null>(null);
   const s = (k: string, v: string) => setF({ ...f, [k]: v });
   return <Modal title="Exercice privé" onClose={onClose}>
     {err && <Notice kind="err">{err}</Notice>}

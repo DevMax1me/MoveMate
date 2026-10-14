@@ -6,8 +6,8 @@ import { isKnownToken } from "@/lib/equipment";
 describe("T22 catalogue", () => {
   const d: DatabaseSync = openDb(":memory:");
   const ex = d.prepare("SELECT * FROM exercises WHERE user_id IS NULL").all() as any[];
-  it("catalogue étendu : plus de 350 fiches, réparties dans les six familles", () => {
-    expect(ex.length).toBeGreaterThanOrEqual(350);
+  it("catalogue étendu : plus de 480 fiches, réparties dans les six familles", () => {
+    expect(ex.length).toBeGreaterThanOrEqual(480);
     for (const m of ["poussée", "tirage", "jambes", "tronc", "cardio", "mobilité"]) expect(ex.filter((e) => e.movement === m).length, m).toBeGreaterThanOrEqual(25);
   });
   it("le lot initial de 40 fiches est toujours présent (8/8/10/6/5/3)", () => {

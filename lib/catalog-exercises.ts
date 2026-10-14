@@ -640,12 +640,144 @@ Pilates au sol;abdominaux;fessiers;h;;d;t;mob
 Gymnastique douce;corps entier;;h;;d;t;mob
 `;
 
-const SECTIONS: [string, string][] = [["push", PUSH], ["pull", PULL], ["legs", LEGS], ["core", CORE], ["cardio", CARDIO], ["mob", MOB], ["push", FUNC], ["push", MORE_PUSH], ["pull", MORE_PULL], ["legs", MORE_LEGS], ["core", MORE_CORE], ["cardio", MORE_CARDIO]];
+// ---------- COMPLÉMENTS 2 : tirages horizontaux (poulie / machine), machines iso-latérales (type Hammer Strength), isolation ----------
+const MORE2_PULL = `
+Tirage horizontal poulie prise neutre;dos;biceps,deltoïdes postérieurs;g;poulie;d;r;pullH;Poignée triangle, buste droit, coudes le long du corps.;Seated cable row, low row
+Tirage horizontal poulie prise large;dos;deltoïdes postérieurs,biceps;g;poulie;d;r;pullH;Barre droite, coudes à environ 45° du tronc.;Cable row prise large
+Tirage horizontal poulie prise supination;dos,biceps;;g;poulie;d;r;pullH;Barre droite, paumes vers le haut.
+Tirage horizontal poulie prise pronation serrée;dos;biceps;g;poulie;d;r;pullH
+Tirage horizontal poulie un bras assis;dos;biceps,obliques;g;poulie;d;r;pullH;Une main à la fois, le tronc reste stable.;Single arm cable row
+Tirage horizontal poulie un bras debout;dos;obliques,biceps;g;poulie;i;r;pullH;Légère rotation du buste autorisée en fin de mouvement.
+Tirage horizontal poulie à genoux;dos;biceps,abdominaux;g;poulie;i;r;pullH
+Tirage horizontal poulie buste penché;dos;biceps,lombaires;g;poulie;i;r;pullH;Debout, hanches en arrière, dos plat.
+Tirage horizontal poulie haute;dos,deltoïdes postérieurs;biceps,trapèzes;g;poulie;d;r;pullH;Poulie à hauteur de visage, coudes hauts.;High cable row
+Tirage horizontal poulie mi-hauteur;dos;deltoïdes postérieurs,biceps;g;poulie;d;r;pullH
+Tirage horizontal poulie corde vers le visage;deltoïdes postérieurs,trapèzes;dos;g;poulie;d;r;rear
+Tirage horizontal poulie jambes tendues;dos;ischio-jambiers,biceps;g;poulie;d;r;pullH
+Tirage horizontal machine prise neutre;dos;biceps,deltoïdes postérieurs;g;machine;d;r;pullH;Poitrine contre le coussin si la machine en a un.;Seated row machine
+Tirage horizontal machine prise large;dos;deltoïdes postérieurs;g;machine;d;r;pullH
+Tirage horizontal machine prise supination;dos,biceps;;g;machine;d;r;pullH
+Tirage horizontal machine unilatéral;dos;biceps;g;machine;d;r;pullH
+Tirage horizontal machine haute;dos,deltoïdes postérieurs;trapèzes;g;machine;d;r;pullH;Coudes hauts, tirez vers le haut de la poitrine.;High row machine
+Tirage horizontal machine basse;dos;biceps;g;machine;d;r;pullH;Coudes bas, tirez vers le nombril.;Low row machine
+Tirage horizontal machine appui poitrine;dos;biceps,deltoïdes postérieurs;g;machine;d;r;pullH;Aussi appelé chest-supported row : ménage le bas du dos.;Chest supported row machine
+Tirage horizontal machine appui poitrine prise large;dos;deltoïdes postérieurs;g;machine;d;r;pullH
+Tirage horizontal machine à levier;dos;biceps;g;machine;d;r;pullH;Machine à disques (plate-loaded) avec trajectoire en arc.;Lever row
+Tirage horizontal Smith;dos;biceps;g;smith;i;r;pullH
+Tirage horizontal barre T appui poitrine;dos;biceps;g;barre,machine;i;r;pullH
+Tirage horizontal à l'élastique accroché à une porte;dos;biceps;h;élastique,porte;d;r;pullH
+Tirage horizontal anneaux;dos;biceps,abdominaux;b;anneaux;i;r;pullH
+Tirage horizontal sous table;dos;biceps;h;table;d;r;pullH
+Tirage vertical poulie corde;dos;biceps;g;poulie;i;r;pullV
+Tirage vertical poulie prise large nuque exclue;dos;biceps;g;poulie;d;r;pullV;La barre descend vers le haut de la poitrine.
+Tirage vertical poulie à genoux unilatéral;dos;obliques;g;poulie;i;r;pullV
+Tirage vertical machine à levier;dos;biceps;g;machine;d;r;pullV
+Tirage vertical poulie prise V;dos;biceps;g;poulie;d;r;pullV
+Tirage poulie haute en supination serrée;dos,biceps;;g;poulie;d;r;pullV
+Pull-over poulie unilatéral;dos;triceps;g;poulie;i;r;pullV
+Tirage bras tendus corde;dos;triceps,abdominaux;g;poulie;i;r;pullV
+Rowing penché prise serrée;dos;biceps;g;barre;i;r;pullH
+Rowing barre appui sur banc incliné;dos;biceps;g;barre,banc;i;r;pullH
+Rowing haltères appui poitrine;dos;biceps;b;haltères,banc;d;r;pullH
+Rowing haltère alterné;dos;biceps;b;haltères;d;r;pullH
+Rowing haltère debout penché une main;dos;biceps,lombaires;b;haltères;d;r;pullH
+`;
+
+const MORE2_ISO = `
+Développé couché iso-latéral machine;pectoraux;triceps,épaules;g;machine;d;r;pushH;Chaque bras travaille indépendamment (machine à levier type Hammer Strength).;Chest press iso-lateral, Hammer chest press
+Développé incliné iso-latéral machine;pectoraux (haut);épaules,triceps;g;machine;d;r;pushH;;Hammer incline press
+Développé décliné iso-latéral machine;pectoraux (bas);triceps;g;machine;d;r;pushH
+Développé épaules iso-latéral machine;épaules;triceps;g;machine;d;r;pushV;;Hammer shoulder press
+Développé épaules machine unilatéral;épaules;triceps,obliques;g;machine;d;r;pushV
+Tirage vertical iso-latéral machine;dos;biceps;g;machine;d;r;pullV;Chaque bras indépendant, trajectoire convergente.;Hammer front pulldown
+Tirage vertical iso-latéral prise neutre;dos;biceps;g;machine;d;r;pullV
+Rowing iso-latéral machine;dos;biceps,deltoïdes postérieurs;g;machine;d;r;pullH;Chaque bras indépendant.;Hammer iso row
+Rowing iso-latéral haut;dos,deltoïdes postérieurs;trapèzes;g;machine;d;r;pullH;;Hammer high row
+Rowing iso-latéral bas;dos;biceps;g;machine;d;r;pullH;;Hammer low row
+Rowing iso-latéral appui poitrine;dos;biceps;g;machine;d;r;pullH
+Dips iso-latéral machine;triceps,pectoraux (bas);épaules;g;machine;d;r;dip
+Dips machine assis;triceps;pectoraux (bas),épaules;g;machine;d;r;dip
+Curl biceps iso-latéral machine;biceps;;g;machine;d;r;curl
+Extension triceps iso-latérale machine;triceps;;g;machine;d;r;tricepsExt
+Élévations latérales iso-latérales machine;deltoïdes latéraux;;g;machine;d;r;lateral
+Pec deck unilatéral;pectoraux;épaules;g;machine;d;r;fly
+Oiseau machine unilatéral;deltoïdes postérieurs;dos;g;machine;d;r;rear
+Oiseau iso-latéral machine;deltoïdes postérieurs;dos;g;machine;d;r;rear
+Pull-over iso-latéral machine;dos;triceps;g;machine;d;r;pullV
+Shrug iso-latéral machine;trapèzes;;g;machine;d;r;shrug
+Presse à cuisses iso-latérale;quadriceps,fessiers;ischio-jambiers;g;machine;d;r;squat;Chaque jambe indépendante, charge sur disques.
+Presse à cuisses iso-latérale unilatérale;quadriceps,fessiers;;g;machine;i;r;squat
+Squat machine iso-latéral;quadriceps,fessiers;;g;machine;d;r;squat;Type V-squat guidé.
+Hack squat iso-latéral;quadriceps;fessiers;g;machine;i;r;squat
+Leg extension iso-latéral;quadriceps;;g;machine;d;r;legext
+Leg curl iso-latéral assis;ischio-jambiers;;g;machine;d;r;legiso
+Leg curl iso-latéral allongé;ischio-jambiers;;g;machine;d;r;legiso
+Mollets assis iso-latéral;mollets;;g;machine;d;r;calf
+Abduction machine unilatérale;abducteurs,fessiers;;g;machine;d;r;glute
+Adduction machine unilatérale;adducteurs;;g;machine;d;r;glute
+Multi-hanches machine;fessiers,abducteurs,adducteurs;ischio-jambiers;g;machine;d;r;glute;Machine multi-directions : extension, abduction, adduction, flexion.
+Machine flexion latérale du tronc;obliques;;g;machine;d;r;rot
+Machine abdominaux assis;abdominaux;;g;machine;d;r;crunch
+Machine lombaires assis;lombaires;fessiers;g;machine;d;r;lowback
+Tractions assistées machine prise neutre;dos;biceps;g;machine;d;r;pullV
+Presse épaules machine unilatérale;épaules;triceps;g;machine;d;r;pushV
+Élévations latérales machine unilatérale;deltoïdes latéraux;;g;machine;d;r;lateral
+Élévations latérales poulie derrière le dos;deltoïdes latéraux;;g;poulie;i;r;lateral;Poulie basse, bras passant derrière le corps.
+Élévations latérales haltère allongé sur le côté;deltoïdes latéraux;;b;haltères,banc;i;r;lateral
+Élévations latérales poulie basse croisée;deltoïdes latéraux;pectoraux (haut);g;poulie;i;r;lateral
+Élévations frontales corde poulie;épaules;;g;poulie;d;r;lateral
+Élévations frontales barre;épaules;;g;barre;d;r;lateral
+Élévations frontales alternées haltères;épaules;;b;haltères;d;r;lateral
+Oiseau poulie croisée haute;deltoïdes postérieurs;dos,trapèzes;g;poulie;i;r;rear
+Oiseau poulie unilatéral;deltoïdes postérieurs;dos;g;poulie;i;r;rear
+Oiseau banc incliné poitrine appuyée;deltoïdes postérieurs;dos;b;haltères,banc;d;r;rear
+Face pull poulie haute corde;deltoïdes postérieurs;trapèzes;g;poulie;d;r;rear
+Curl concentration poulie;biceps;;g;poulie;d;r;curl
+Curl incliné poulie;biceps;;g;poulie,banc;i;r;curl
+Curl marteau poulie unilatéral;biceps,avant-bras;;g;poulie;d;r;curl
+Curl pupitre unilatéral haltère;biceps;;b;haltères,banc;d;r;curl
+Curl haltère assis alterné;biceps;;b;haltères,banc;d;r;curl
+Curl barre poulie basse;biceps;;g;poulie;d;r;curl
+Extension triceps unilatérale haltère au-dessus de la tête;triceps;;b;haltères;d;r;tricepsExt
+Extension triceps haltère allongé unilatéral;triceps;;b;haltères,banc;d;r;tricepsExt
+Kickback triceps poulie;triceps;;g;poulie;d;r;tricepsExt
+Extension triceps poulie prise neutre;triceps;;g;poulie;d;r;tricepsExt
+Extension triceps poulie inversée unilatérale;triceps;avant-bras;g;poulie;d;r;tricepsExt
+Extension triceps machine assise;triceps;;g;machine;d;r;tricepsExt
+Écartés machine unilatérale;pectoraux;épaules;g;machine;d;r;fly
+Pull-over haltère unilatéral;dos,pectoraux;triceps;b;haltères,banc;i;r;pullV
+Tirage bras tendus poulie unilatéral;dos;triceps;g;poulie;i;r;pullV
+Mollets unilatéral machine;mollets;;g;machine;i;r;calf
+Kickback poulie à genoux;fessiers;;g;poulie;d;r;glute
+Abduction poulie debout;abducteurs;fessiers;g;poulie;d;r;glute
+Curl poignets poulie;avant-bras;;g;poulie;d;r;curl
+Extension poignets haltère;avant-bras;;b;haltères,banc;d;r;curl
+Curl marteau corde;biceps,avant-bras;;g;poulie;d;r;curl
+Pinch grip (prise en pince);avant-bras;;b;barre;i;t;carry;Tenir un disque entre les doigts.
+Squat Smith pieds avancés;fessiers,quadriceps;;g;smith;d;r;squat
+Développé couché Smith prise serrée;triceps,pectoraux;épaules;g;smith,banc;i;r;pushH
+Tirage menton Smith;épaules,trapèzes;;g;smith;i;r;shrug
+Fentes Smith pieds décalés;quadriceps,fessiers;;g;smith;i;r;lunge
+Soulevé de terre roumain poulie basse;ischio-jambiers,fessiers;;g;poulie;d;r;hinge
+Leg press pieds écartés;adducteurs,fessiers;quadriceps;g;machine;d;r;squat
+Squat hack pieds serrés;quadriceps;;g;machine;i;r;squat
+Hip thrust Smith pieds surélevés;fessiers;;g;smith,banc;i;r;glute
+Leg curl allongé à une jambe;ischio-jambiers;;g;machine;i;r;legiso
+Leg extension à une jambe;quadriceps;;g;machine;i;r;legext
+Curl ischios assis à une jambe;ischio-jambiers;;g;machine;i;r;legiso
+Presse à mollets unilatérale;mollets;;g;machine;i;r;calf
+Développé incliné haltères une main alternée;pectoraux (haut);épaules,triceps;b;haltères,banc;i;r;pushH
+Écartés poulie couché sur banc;pectoraux;épaules;g;poulie,banc;i;r;fly
+Écartés poulie incliné;pectoraux (haut);épaules;g;poulie,banc;i;r;fly
+Pec deck inversé unilatéral;deltoïdes postérieurs;dos;g;machine;d;r;rear
+`;
+
+const SECTIONS: [string, string][] = [["push", PUSH], ["pull", PULL], ["legs", LEGS], ["core", CORE], ["cardio", CARDIO], ["mob", MOB], ["push", FUNC], ["push", MORE_PUSH], ["pull", MORE_PULL], ["legs", MORE_LEGS], ["core", MORE_CORE], ["cardio", MORE_CARDIO], ["pull", MORE2_PULL], ["push", MORE2_ISO]];
 
 export const slugify = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const list = (s: string) => (s ? s.split(",").map((x) => x.trim()).filter(Boolean) : []);
 
-export type CatalogRow = { slug: string; name: string; movement: string; primary: string[]; secondary: string[]; place: "home" | "gym" | "both"; equipment: string[]; level: string; metric: "reps_load" | "time" | "distance"; steps: string; mistakes: string; easier: string | null; alternative: string | null };
+export type CatalogRow = { slug: string; name: string; alias: string | null; movement: string; primary: string[]; secondary: string[]; place: "home" | "gym" | "both"; equipment: string[]; level: string; metric: "reps_load" | "time" | "distance"; steps: string; mistakes: string; easier: string | null; alternative: string | null };
 
 export function buildCatalog(): CatalogRow[] {
   const rows: CatalogRow[] = [];
@@ -653,7 +785,7 @@ export function buildCatalog(): CatalogRow[] {
   for (const [group, text] of SECTIONS) {
     for (const line of text.split("\n")) {
       if (!line.trim()) continue;
-      const [name, prim, sec, place, equip, lvl, met, pat, note] = line.split(";");
+      const [name, prim, sec, place, equip, lvl, met, pat, note, alias] = line.split(";");
       const p = P[pat];
       if (!p) throw new Error(`Modèle inconnu « ${pat} » pour ${name}`);
       const slug = slugify(name);
@@ -661,7 +793,7 @@ export function buildCatalog(): CatalogRow[] {
       seen.add(slug);
       const movement = pat === "plyo" ? (group === "push" && /pompes/i.test(name) ? "poussée" : "jambes") : PATMOVE[pat] ?? GROUP[group];
       rows.push({
-        slug, name, movement, primary: list(prim), secondary: list(sec), place: place === "h" ? "home" : place === "g" ? "gym" : "both",
+        slug, name, alias: alias?.trim() || null, movement, primary: list(prim), secondary: list(sec), place: place === "h" ? "home" : place === "g" ? "gym" : "both",
         equipment: list(equip).map((e) => e.replace(/\//g, "|")), level: LEVEL[lvl], metric: METRIC[met],
         steps: p.steps + (note ? ` ${note}` : ""), mistakes: p.mistakes, easier: p.easier === slug ? null : p.easier, alternative: p.alt === slug ? null : p.alt,
       });

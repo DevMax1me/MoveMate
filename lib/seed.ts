@@ -112,7 +112,7 @@ export function seedCatalog(db: DatabaseSync) {
   db.exec("BEGIN");
   try {
     for (const e of EXOS) if (!have.has(e[0])) { ins.run(id(), e[0], 1, e[1], e[2], e[3], csv(e[4]), csv(e[5]), e[6], csv(e[7]), e[8], e[9], e[10], e[11], e[12], e[13]); have.add(e[0]); }
-    for (const e of buildCatalog()) if (!have.has(e.slug)) { ins.run(id(), e.slug, 1, e.name, null, e.movement, JSON.stringify(e.primary), JSON.stringify(e.secondary), e.place, JSON.stringify(e.equipment), e.level, e.metric, e.steps, e.mistakes, e.easier, e.alternative); have.add(e.slug); }
+    for (const e of buildCatalog()) if (!have.has(e.slug)) { ins.run(id(), e.slug, 1, e.name, e.alias, e.movement, JSON.stringify(e.primary), JSON.stringify(e.secondary), e.place, JSON.stringify(e.equipment), e.level, e.metric, e.steps, e.mistakes, e.easier, e.alternative); have.add(e.slug); }
     db.exec("COMMIT");
   } catch (err) { db.exec("ROLLBACK"); throw err; }
   const nf = (db.prepare("SELECT COUNT(*) c FROM foods WHERE user_id IS NULL").get() as { c: number }).c;

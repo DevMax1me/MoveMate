@@ -6,6 +6,26 @@ import { ApiError, type User } from "../auth";
 
 export type ExRow = { id: string; ex_key: string; version: number; user_id: string | null; name: string; alias: string | null; movement: string; primary_muscles: string; secondary_muscles: string; place: string; equipment: string; level: string; metric: "reps_load" | "time" | "distance"; steps: string | null; mistakes: string | null; easier: string | null; alternative: string | null; media_url: string | null; media_author: string | null; media_source: string | null; media_license: string | null; status: string; archived: number };
 
+
+const nz = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+// Vocabulaire de salle : on enrichit le texte cherché pour que « tirage horizontal », « row », « iso lat », « lat pulldown »… retrouvent les bonnes fiches.
+const SYNONYMS: [RegExp, string][] = [
+  [/rowing|tirage horizontal|\brow\b/, "tirage horizontal row rowing seated row low row high row"], [/tirage vertical|tractions?/, "tirage vertical lat pulldown pull down pulldown"],
+  [/iso-?lateral|unilateral|une main|un bras|a une jambe|alterne/, "iso lat isolat isolateral iso-lateral unilateral unilat un bras"], [/iso-?lateral/, "hammer strength machine a levier"], [/marteau/, "hammer curl"], [/hammer|levier|machine a levier/, "hammer strength plate loaded"],
+  [/developpe couche|developpe incline|developpe decline|pec deck|ecartes/, "bench press chest press pectoraux pecs"], [/developpe (militaire|epaules)|presse epaules/, "shoulder press overhead press military"],
+  [/elevations? laterales?/, "lateral raise laterales iso lat deltoides lateraux"], [/elevations? frontales?/, "front raise"], [/oiseau|reverse|face pull/, "reverse fly rear delt deltoides arriere"],
+  [/presse a cuisses|presse a mollets/, "leg press"], [/leg curl|curl ischio/, "hamstring curl ischios"], [/leg extension/, "extension quadriceps jambes"], [/curl/, "biceps curl"],
+  [/extension triceps|barre au front|kickback triceps/, "triceps pushdown extension"], [/dips/, "dips"], [/pompes?/, "push up pushup"], [/squat/, "squat jambes"], [/souleve de terre/, "deadlift"],
+  [/hip thrust|pont fessier|kickback fessier|abduction|adduction/, "glute bridge fessiers"], [/crunch|releves?|sit-up|v-up/, "abdos abs abdominaux"], [/planche|gainage/, "gainage plank core"],
+  [/mollets/, "calf raise"], [/poulie/, "cable cables"], [/smith/, "smith machine barre guidee"], [/kettlebell/, "kb russian"], [/pull-?over/, "pullover"],
+  [/shrugs?|haussements?/, "trapezes shrug"], [/fentes?|bulgare|step-?up/, "lunge split squat"], [/cardio|course|velo|rameur|marche/, "cardio endurance"],
+];
+const searchBlob = (e: { name: string; alias: string | null; movement: string; primary_muscles: string[] }) => {
+  const base = nz(`${e.name} ${e.alias ?? ""}`);
+  const extra = SYNONYMS.filter(([re]) => re.test(base)).map(([, k]) => k).join(" ");
+  return `${base} ${nz(e.primary_muscles.join(" "))} ${nz(e.movement)} ${extra}`;
+};
+
 export const latestEx = (userId: string, key: string) => get<ExRow>("SELECT * FROM exercises WHERE ex_key=? AND (user_id IS NULL OR user_id=?) AND status='published' ORDER BY version DESC LIMIT 1", key, userId);
 const exOut = (e: ExRow, user: User) => {
   const equipment = P<string[]>(e.equipment, []);
@@ -22,7 +42,7 @@ export function mountTraining(r: Router) {
       AND version=(SELECT MAX(version) FROM exercises x WHERE x.ex_key=e.ex_key AND (x.user_id IS NULL OR x.user_id=?) AND x.status='published') ORDER BY name`, user.id, user.id);
     const n = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
     let out = rows.map((e) => exOut(e, user)).filter((e) =>
-      (!q || q.split(/\s+/).every((w: string) => n(e.name + " " + (e.alias ?? "") + " " + e.primary_muscles.join(" ") + " " + e.movement).includes(w))) &&
+      (!q || ((blob) => q.split(/[\s-]+/).filter(Boolean).every((w: string) => blob.includes(w)))(searchBlob(e))) &&
       (!place || (place === "home" ? e.place !== "gym" : place === "gym" ? e.place !== "home" : true)) &&
       (!muscle || e.primary_muscles.some((m: string) => n(m).includes(n(muscle))) || e.secondary_muscles.some((m: string) => n(m).includes(n(muscle)))) &&
       (!eq || (eq === "none" ? e.equipment.length === 0 : e.equipment.some((x: string) => x.includes(eq)))) &&

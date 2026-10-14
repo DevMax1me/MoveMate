@@ -204,13 +204,28 @@ d("recette bout en bout", () => {
 
   it("T22 catalogue étendu : 350+ fiches, filtres, compatibilité matériel", async () => {
     const all = (await A.get("/exercises")).json.exercises;
-    expect(all.length).toBeGreaterThanOrEqual(350);
+    expect(all.length).toBeGreaterThanOrEqual(480);
     const C = await signup("eq@test.fr");
     expect((await C.get("/exercises?compatible=1")).json.exercises.every((e: any) => e.compatible)).toBe(true);
     await C.post("/lifestyle", { data: { equipment: ["haltères"], gym: false } });
     const home = (await C.get("/exercises?place=home&compatible=1")).json.exercises;
     expect(home.some((e: any) => e.ex_key === "goblet-squat")).toBe(true);
     expect(home.some((e: any) => e.ex_key === "developpe-couche-halteres")).toBe(false); // banc manquant
+  });
+
+  it("recherche : le vocabulaire de salle retrouve les bonnes fiches (tirage horizontal, iso-latéral, hammer, lat pulldown…)", async () => {
+    const C = await signup("search@test.fr");
+    const find = async (q: string) => (await C.get(`/exercises?q=${encodeURIComponent(q)}`)).json.exercises as any[];
+    const th = await find("tirage horizontal");
+    expect(th.length).toBeGreaterThanOrEqual(25);
+    expect(th.some((e) => /poulie/i.test(e.name))).toBe(true); expect(th.some((e) => /machine/i.test(e.name))).toBe(true);
+    expect((await find("row")).length).toBeGreaterThanOrEqual(25);
+    for (const q of ["iso lat", "isolateral", "iso-latéral", "hammer"]) expect((await find(q)).length, q).toBeGreaterThanOrEqual(20);
+    expect((await find("lat pulldown")).some((e) => /tirage vertical/i.test(e.name))).toBe(true);
+    expect((await find("seated cable row")).some((e) => /tirage horizontal poulie/i.test(e.name))).toBe(true);
+    expect((await find("leg press")).length).toBeGreaterThanOrEqual(8);
+    expect((await find("bench press")).length).toBeGreaterThanOrEqual(15);
+    expect((await find("xyzintrouvable")).length).toBe(0);
   });
 
   it("notes : import prévisualisé, versions, historique, objectifs à revoir", async () => {
