@@ -284,6 +284,36 @@ d("recette bout en bout", () => {
     expect((await C.get(`/exercise-brief?keys=${many}`)).status).toBe(200);
   });
 
+  it("dire ce que j'ai mangé : estimation, aliment inconnu mémorisé puis reconnu, repas enregistré avec les quantités marquées estimées", async () => {
+    const C = await signup("say@test.fr");
+    expect((await new Client("anonyme").post("/meals/say/preview", { text: "une pomme" })).status).toBe(401);
+    const r = await C.post("/meals/say/preview", { text: "ce midi : 2 œufs au plat, 2 tranches de pain complet, un café, une pomme, zzqx flurbo" });
+    expect(r.status, JSON.stringify(r.json)).toBe(200);
+    expect(r.json.category).toBe("Déjeuner"); expect(r.json.lines).toHaveLength(5); expect(r.json.urls).toEqual([]);
+    const [oeufs, pain, cafe, pomme, inconnu] = r.json.lines;
+    expect(oeufs.candidates[0].food.name).toBe("Œuf au plat"); expect(oeufs.amount).toMatchObject({ qty: 120, unit: "g", approx: true });
+    expect(pain.amount.qty).toBe(60); expect(cafe.amount).toMatchObject({ qty: 120, unit: "ml" }); expect(pomme.amount.qty).toBe(150);
+    expect(oeufs.candidates[0].food.id).toBeTruthy(); expect(oeufs.candidates[0].food).toMatchObject({ basis: "100g", kcal: expect.any(Number) }); // de quoi enregistrer et recalculer
+    expect(inconnu.candidates).toEqual([]); expect(inconnu.chosen).toBeNull(); expect(inconnu.amount).toBeNull();
+    expect(r.json.totals.kcal).toBeGreaterThan(380); expect(r.json.totals.kcal).toBeLessThan(520);
+    // adresse seule : pas de lignes, l'adresse est signalée pour l'import de recette
+    const u = await C.post("/meals/say/preview", { text: "https://exemple.fr/recette" }); expect(u.status).toBe(200); expect(u.json.lines).toEqual([]); expect(u.json.urls).toEqual(["https://exemple.fr/recette"]);
+    for (const bad of ["", "   ", ",,;;"]) expect((await C.post("/meals/say/preview", { text: bad })).status, JSON.stringify(bad)).toBe(400);
+    expect((await C.post("/meals/say/preview", { text: "pomme ".repeat(300) })).status).toBe(400); // texte trop long
+    // aliment inconnu : on mémorise une estimation (par portion) ; il est reconnu la fois suivante, avant le catalogue
+    const food = await C.post("/foods", { basis: "portion", name: "Tarte au maroilles", kcal: 450, portion_label: "1 portion" });
+    expect(food.status, JSON.stringify(food.json)).toBe(200);
+    const r2 = await C.post("/meals/say/preview", { text: "2 parts de tarte au maroilles" });
+    expect(r2.json.lines[0].candidates[0].food).toMatchObject({ name: "Tarte au maroilles", basis: "portion", private: true }); expect(r2.json.lines[0].amount).toMatchObject({ qty: 2, unit: "portion" }); expect(r2.json.lines[0].nutrients.kcal).toBe(900);
+    const other = await signup("say2@test.fr"); expect((await other.post("/meals/say/preview", { text: "2 parts de tarte au maroilles" })).json.lines[0].candidates.every((c: any) => c.food.name !== "Tarte au maroilles")).toBe(true); // mes aliments restent à moi
+    // enregistrement : approx marque l'énergie comme estimée, pas une quantité précise
+    const items = [{ kind: "food", food_id: oeufs.candidates[0].food.id, qty: 120, unit: "g", approx: true }, { kind: "food", food_id: pomme.candidates[0].food.id, qty: 200, unit: "g" }, { kind: "food", food_id: food.json.id, qty: 1, unit: "portion", approx: true }];
+    expect((await C.post("/meals-batch", { date: today, category: "Déjeuner", items })).status).toBe(200);
+    const day = (await C.get(`/meals?date=${today}`)).json;
+    expect(day.entries).toHaveLength(3); expect(day.entries.map((e: any) => !!e.estimated)).toEqual([true, false, true]); expect(day.estimated).toBe(true);
+    expect(Math.round(day.totals.kcal)).toBe(Math.round(120 * 1.96 + 200 * 0.52 + 450));
+  });
+
   it("import de recette : aperçu calculé depuis un texte collé, adresses internes refusées", async () => {
     const C = await signup("import@test.fr");
     expect((await new Client("anonyme").post("/recipes/import/preview", { text: "1 oeuf" })).status).toBe(401);

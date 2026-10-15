@@ -5,6 +5,7 @@ import { fetchPage, validateUrl, FetchRefused } from "../safe-fetch";
 import { extractRecipe, type Extracted } from "../recipe-extract";
 import { parseIngredient } from "../recipe-parse";
 import { buildIndex, matchIngredient } from "../recipe-match";
+import { splitMealText, extractUrls, detectCategory } from "../meal-say";
 import { toAmount, lineNutrients, type FoodLite } from "../recipe-amount";
 import { sumNutrients } from "../calc";
 import type { FoodRow } from "./nutrition";
@@ -23,16 +24,17 @@ function throttle(userId: string) {
 export const foodLite = (f: FoodRow): FoodLite => ({ food_key: f.food_key, name: f.name, brand: f.brand, basis: f.basis, portion_g: f.portion_g, portion_ml: f.portion_ml, portion_label: f.portion_label, density: f.density, kcal: f.kcal, kj: f.kj, kcal_kj_only: f.kj, protein: f.protein, carbs: f.carbs, fat: f.fat, fiber: f.fiber, user_id: f.user_id });
 
 /** Aperçu à partir des lignes d'ingrédients : une entrée par ligne avec aliment proposé, quantité convertie et apport calculé. */
-export function previewLines(userId: string, ingredients: string[]) {
+export function previewLines(userId: string, ingredients: string[], opts: { meal?: boolean } = {}) {
+  const meal = !!opts.meal;
   const rows = all<FoodRow>(`SELECT * FROM foods f WHERE (user_id IS NULL OR user_id=?) AND archived=0
     AND version=(SELECT MAX(version) FROM foods x WHERE x.food_key=f.food_key AND (x.user_id IS NULL OR x.user_id=?))`, userId, userId);
-  const foods = rows.map(foodLite), idx = buildIndex(foods), byKey = new Map(foods.map((f) => [f.food_key, f]));
+  const foods = rows.map(foodLite), idx = buildIndex(foods), byKey = new Map(foods.map((f) => [f.food_key, f])), byId = new Map(rows.map((f) => [f.food_key, f.id]));
   const lines = ingredients.map((raw) => {
     const parsed = parseIngredient(raw);
-    const m = matchIngredient(parsed.name, idx, 5, parsed.unit);
-    const cands = m.candidates.map((c) => { const f = byKey.get(c.food_key)!; return { food_key: c.food_key, score: c.score, food: { food_key: f.food_key, name: f.name, brand: f.brand ?? null, basis: f.basis, portion_g: f.portion_g ?? null, portion_ml: f.portion_ml ?? null, portion_label: f.portion_label ?? null, density: f.density ?? null, kcal: f.kcal, kj: f.kj ?? null, protein: f.protein, carbs: f.carbs, fat: f.fat, fiber: f.fiber, private: !!f.user_id } }; });
+    const m = matchIngredient(parsed.name, idx, 5, parsed.unit, meal ? "cuit" : "cru");
+    const cands = m.candidates.map((c) => { const f = byKey.get(c.food_key)!; return { food_key: c.food_key, score: c.score, food: { id: byId.get(c.food_key), food_key: f.food_key, name: f.name, brand: f.brand ?? null, basis: f.basis, portion_g: f.portion_g ?? null, portion_ml: f.portion_ml ?? null, portion_label: f.portion_label ?? null, density: f.density ?? null, kcal: f.kcal, kj: f.kj ?? null, protein: f.protein, carbs: f.carbs, fat: f.fat, fiber: f.fiber, private: !!f.user_id } }; });
     const top = cands[0] ? byKey.get(cands[0].food_key)! : null;
-    const amount = top ? toAmount(parsed, top) : null;
+    const amount = top ? toAmount(parsed, top, { meal }) : null;
     const n = top && amount && !amount.negligible ? lineNutrients(top, amount) : null;
     return { raw: parsed.raw, parsed, candidates: cands, chosen: top && m.confidence !== "none" ? top.food_key : null, confidence: m.confidence, amount, nutrients: n };
   });
@@ -41,6 +43,15 @@ export function previewLines(userId: string, ingredients: string[]) {
 }
 
 export function mountRecipeImport(r: Router) {
+  // « Dire ce que j'ai mangé » : phrase libre → éléments, aliment proposé, quantité estimée (portion usuelle si rien n'est dit), apport calculé.
+  r.post("/meals/say/preview", ({ user, body }) => {
+    const text = str(body.text, "Texte", 1500);
+    const items = splitMealText(text), urls = extractUrls(text);
+    if (!items.length && !urls.length) throw bad("Dites ce que vous avez mangé, par exemple « 2 œufs, du pain, un café ».");
+    const { lines, totals } = items.length ? previewLines(user.id, items, { meal: true }) : { lines: [], totals: sumNutrients([]) };
+    return { lines, totals, urls: urls.slice(0, 3), category: detectCategory(text) };
+  });
+
   r.post("/recipes/import/preview", async ({ user, body }) => {
     const text: string = typeof body.text === "string" ? body.text.trim() : "";
     let ex: Extracted, sourceUrl: string | null = null;

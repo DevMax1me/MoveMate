@@ -2,6 +2,7 @@ import type { DatabaseSync } from "node:sqlite";
 import crypto from "node:crypto";
 import { buildCatalog } from "./catalog-exercises";
 import { INGREDIENTS } from "./ingredients";
+import { DISHES } from "./dishes";
 
 const id = () => crypto.randomBytes(12).toString("base64url");
 const now = () => new Date().toISOString();
@@ -140,7 +141,7 @@ export function seedCatalog(db: DatabaseSync) {
       insFood.run(id(), key, f[0], f[1], isMl ? null : f[7], isMl ? f[7] : null, f[8], f[9], f[2], f[3], f[4], f[5], f[6], GEN_SRC, GEN_LIC, now());
       haveFood.add(key);
     }
-    for (const g of INGREDIENTS) {
+    for (const g of [...INGREDIENTS, ...DISHES]) {
       const key = "gen-" + g[0].toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/œ/g, "oe").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
       if (haveFood.has(key)) continue;
       insFood.run(id(), key, g[0], "100g", g[6], null, g[7], g[8], g[1], g[2], g[3], g[4], g[5], GEN_SRC, GEN_LIC, now());

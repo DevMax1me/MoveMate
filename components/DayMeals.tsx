@@ -35,7 +35,7 @@ export function DayCard({ day, date, reload, onAdd }: { day: any; date: string; 
         <Meter label="Lipides" value={t.fat} target={day.goal?.fat} color="var(--s1)" />
       </div>
       {day.macrosIncomplete && day.entries.length > 0 && <p><span className="badge warn">macros incomplètes</span> <span className="small muted">Les valeurs inconnues ne sont pas comptées comme 0 : ces totaux sont des minimums connus.</span></p>}
-      {day.estimated && <p><span className="badge warn">dont énergie estimée</span></p>}
+      {day.estimated && <p><span className="badge warn">dont énergie estimée</span> <span className="small muted">quantités approximatives : corrigez une ligne si vous connaissez la vraie</span></p>}
       {day.entries.length === 0 ? <div className="empty"><Mascot mood="sleepy" size={56} /><div>Rien de noté pour ce jour. <div className="row" style={{ marginTop: 10 }}><button className="primary" onClick={() => onAdd()}>Ajouter un repas</button><button onClick={copyPrev}>Copier la veille</button></div></div></div> :
         Object.entries(groups).map(([c, es]) => {
           const kc = es.every((e) => e.kcal == null) ? null : es.reduce((a, e) => a + (e.kcal ?? 0), 0);
@@ -44,7 +44,7 @@ export function DayCard({ day, date, reload, onAdd }: { day: any; date: string; 
             <div className="row spread" style={{ alignItems: "baseline" }}><h3 style={{ margin: ".9rem 0 .1rem" }}>{c}</h3><span className="small muted">{es.length} élément{es.length > 1 ? "s" : ""} · <b style={{ color: "var(--ink)" }}>{nf(kc, 0)} kcal</b></span></div>
             {es.map((e) => <div className="item" key={e.id}>
               <button className="ghost grow" style={{ justifyContent: "flex-start", textAlign: "left", padding: 0 }} onClick={() => setEdit(e)} aria-label={`Modifier ${e.label}`}>
-                <span><b>{e.label}</b> <span className="muted small">{nf(e.qty)} {e.unit === "portion" ? "portion(s)" : e.unit}</span>{e.incomplete ? <> <span className="badge warn">macros incomplètes</span></> : null}</span></button>
+                <span><b>{e.label}</b> <span className="muted small">{nf(e.qty)} {e.unit === "portion" ? "portion(s)" : e.unit}</span>{e.estimated ? <> <span className="badge" title="Quantité ou énergie estimée">≈ estimé</span></> : null}{e.incomplete ? <> <span className="badge warn">macros incomplètes</span></> : null}</span></button>
               <span className="nowrap small">{nf(e.kcal, 0)} kcal</span></div>)}
             <div className="row" style={{ gap: ".3rem", marginTop: 4 }}>
               <button className="ghost" style={{ minHeight: 36 }} onClick={() => onAdd(c)}>＋ Ajouter</button>

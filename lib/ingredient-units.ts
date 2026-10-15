@@ -1,6 +1,7 @@
 // Poids usuels pour convertir des pièces et conditionnements en grammes (données, sans dépendance).
 /** Poids d'une pièce quand la recette ne donne ni gramme ni millilitre (« 2 oignons », « 1 gousse d'ail »). Premier motif qui correspond (texte sans accents). */
 export const PIECE_G: [RegExp, number][] = [
+  [/\bbaguettes?\b/, 250], [/\bpizzas?\b/, 350],
   [/\bjaunes?\b/, 18], [/\bblancs? d'?oeuf|\bblancs?$/, 33], [/\boeufs?\b/, 55],
   [/\bgousses? d'?ail|\bail\b/, 4], [/\btete d'?ail/, 50], [/\bechalotes?\b/, 25], [/\boignons? (nouveau|nouveaux)|\bcebettes?|\bciboules?/, 20], [/\boignons?\b/, 110],
   [/\btomates? cerises?|\bcerises?\b/, 15], [/\btomates?\b/, 120], [/\bcarottes?\b/, 80], [/\bpommes? de terre|\bpatates? douces?|\bpatates?\b/, 150],

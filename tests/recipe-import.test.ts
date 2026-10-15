@@ -105,9 +105,10 @@ describe("rapprochement, conversion et calcul sur le catalogue", () => {
     expect(t.protein! / 15).toBeGreaterThan(5.6 * 0.8); expect(t.protein! / 15).toBeLessThan(5.6 * 1.25);
     const bbc = sumNutrients(["100g plain flour", "2 large eggs", "300ml milk", "1 tbsp sunflower or vegetable oil plus a little extra for frying"].map((l) => calc(l).n!)); expect(bbc.kcal! / 12).toBeGreaterThan(61 * 0.85); expect(bbc.kcal! / 12).toBeLessThan(61 * 1.2);
   });
-  it("un aliment privé de l'utilisateur est préféré à égalité ; les aliments en portion ne sont pas convertis", () => {
+  it("un aliment privé de l'utilisateur est préféré à égalité ; un aliment compté en portions n'est pas converti en grammes", () => {
     const mine = { ...foods.find((f) => f.name === "Farine de blé (T45/T55)")!, food_key: "u-1", name: "Ma farine", user_id: "x" } as FoodLite;
     const i2 = buildIndex([...foods, { ...mine, name: "Farine", food_key: "u-2" }]); expect(matchIngredient("farine", i2).candidates[0].food_key).toBe("u-2");
-    expect(toAmount(parseIngredient("2 farine"), { ...mine, basis: "portion" } as FoodLite)).toBeNull();
+    const portionFood = { ...mine, basis: "portion" } as FoodLite;
+    expect(toAmount(parseIngredient("2 parts de tarte"), portionFood)).toMatchObject({ qty: 2, unit: "portion" }); expect(toAmount(parseIngredient("200 g de tarte"), portionFood)).toBeNull(); // un aliment compté en portions ne se convertit pas en grammes
   });
 });

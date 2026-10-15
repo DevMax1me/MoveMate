@@ -4,6 +4,7 @@ import { api, nf, fmtShort } from "@/lib/client";
 import { computeFood, recipePortion, sumNutrients, CalcError, parseNum, type Computed, type FoodBasis } from "@/lib/calc";
 import { Field, Modal, Notice, Tabs, toast } from "./ui";
 import RecipeImport from "./RecipeImport";
+import SayMeal, { type SayItem } from "./SayMeal";
 
 export const CATEGORIES = ["Petit-déjeuner", "Déjeuner", "Dîner", "Collation"];
 type Food = FoodBasis & { id: string; food_key: string; name: string; brand: string | null; portion_label: string | null; favorite?: boolean; public: boolean; incomplete: boolean; source: string; kj: number | null };
@@ -39,8 +40,8 @@ export function FoodForm({ initial, onSaved, onCancel }: { initial?: Partial<Foo
   );
 }
 
-type BItem = { id: string; kind: "food" | "recipe"; item: any; qty: string; unit: string };
-type Tab = "fav" | "recent" | "search" | "recipes" | "new" | "reuse";
+type BItem = { id: string; kind: "food" | "recipe"; item: any; qty: string; unit: string; approx?: boolean };
+type Tab = "say" | "fav" | "recent" | "search" | "recipes" | "new" | "reuse";
 const rid = () => Math.random().toString(36).slice(2, 9);
 const unitsFor = (kind: "food" | "recipe", item: any): string[] => kind === "food" ? [item.basis === "100ml" ? "ml" : item.basis === "portion" ? null : "g", item.basis === "100g" && item.density ? "ml" : item.basis === "100ml" && item.density ? "g" : null, "portion"].filter(Boolean) as string[] : ["portion", "g"];
 const defaultQty = (kind: "food" | "recipe", item: any): [string, string] => {
@@ -71,17 +72,17 @@ function unusual(unit: string, qty: string, c?: Computed): string | null {
 export default function MealAdder({ date, defaultCategory, onClose, onAdded }: { date: string; defaultCategory?: string; onClose: () => void; onAdded: () => void }) {
   const [cat, setCat] = useState(defaultCategory ?? CATEGORIES[0]), [custom, setCustom] = useState(false);
   const [basket, setBasket] = useState<BItem[]>([]);
-  const [tab, setTab] = useState<Tab>("fav");
+  const [tab, setTab] = useState<Tab>("say");
   const [q, setQ] = useState(""), [foods, setFoods] = useState<Food[]>([]), [recipes, setRecipes] = useState<any[]>([]);
   const [sel, setSel] = useState<{ kind: "food" | "recipe"; item: any } | null>(null), [qty, setQty] = useState("1"), [unit, setUnit] = useState("portion");
   const [tpls, setTpls] = useState<any[] | null>(null), [recents, setRecents] = useState<any[] | null>(null);
-  const [saveTpl, setSaveTpl] = useState(false), [tplName, setTplName] = useState(""), [imp, setImp] = useState(false);
+  const [saveTpl, setSaveTpl] = useState(false), [tplName, setTplName] = useState(""), [imp, setImp] = useState(false), [impUrl, setImpUrl] = useState<string | undefined>();
   const [err, setErr] = useState<string | null>(null), [ext, setExt] = useState<{ products: any[]; unavailable?: boolean; message?: string } | null>(null), [busy, setBusy] = useState(false);
 
   useEffect(() => {
     if (tab === "recipes") { api("/recipes").then((r) => setRecipes(r.recipes)); return; }
     if (tab === "reuse") { api("/meal-templates").then((r) => setTpls(r.templates)).catch(() => setTpls([])); api("/meals-recent").then((r) => setRecents(r.meals)).catch(() => setRecents([])); return; }
-    if (tab === "new") return;
+    if (tab === "new" || tab === "say") return;
     const scope = tab === "fav" ? "fav" : tab === "recent" ? "recent" : "all";
     const t = setTimeout(() => api(`/foods?scope=${scope}&q=${encodeURIComponent(q)}`).then((r) => setFoods(r.foods)).catch(() => {}), 150);
     return () => clearTimeout(t);
@@ -89,6 +90,10 @@ export default function MealAdder({ date, defaultCategory, onClose, onAdded }: {
 
   function pick(kind: "food" | "recipe", item: any) { setSel({ kind, item }); setErr(null); const [dq, du] = defaultQty(kind, item); setQty(dq); setUnit(du); }
   const preview = useMemo(() => (sel ? compute(sel.kind, sel.item, qty, unit) : null), [sel, qty, unit]);
+  function addFromSay(items: SayItem[]) {
+    setBasket((b) => [...b, ...items.map((i) => ({ id: rid(), kind: "food" as const, item: i.food, qty: i.qty, unit: i.unit, approx: i.approx }))]);
+    setErr(null); toast(`${items.length} élément${items.length > 1 ? "s" : ""} ajouté${items.length > 1 ? "s" : ""} au repas : vous pouvez continuer ou enregistrer`);
+  }
   function addToBasket() { if (!sel || !preview || "error" in preview) return; setBasket([...basket, { id: rid(), kind: sel.kind, item: sel.item, qty, unit }]); setSel(null); toast(`${sel.item.name ?? sel.item.title} ajouté au repas`); }
   function loadItems(items: any[], category?: string) {
     const add: BItem[] = items.filter((i) => i.food || i.recipe).map((i) => ({ id: rid(), kind: i.kind, item: i.food ?? i.recipe, qty: String(i.qty), unit: i.unit }));
@@ -103,7 +108,7 @@ export default function MealAdder({ date, defaultCategory, onClose, onAdded }: {
   async function save() {
     if (!basket.length || bad) return; setBusy(true); setErr(null);
     try {
-      await api("/meals-batch", { body: { date, category: cat.trim() || "Repas", template_name: saveTpl ? (tplName.trim() || cat) : undefined, items: basket.map((b) => ({ kind: b.kind, food_id: b.kind === "food" ? b.item.id : undefined, recipe_id: b.kind === "recipe" ? b.item.id : undefined, qty: parseNum(b.qty), unit: b.unit })) } });
+      await api("/meals-batch", { body: { date, category: cat.trim() || "Repas", template_name: saveTpl ? (tplName.trim() || cat) : undefined, items: basket.map((b) => ({ kind: b.kind, food_id: b.kind === "food" ? b.item.id : undefined, recipe_id: b.kind === "recipe" ? b.item.id : undefined, qty: parseNum(b.qty), unit: b.unit, approx: b.approx || undefined })) } });
       toast(`${cat} enregistré${saveTpl ? " et mémorisé comme repas type" : ""}`); onAdded(); onClose();
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   }
@@ -143,10 +148,11 @@ export default function MealAdder({ date, defaultCategory, onClose, onAdded }: {
 
       {!sel ? <>
         <h3 style={{ marginTop: 0 }}>Ajouter à ce repas</h3>
-        <Tabs tabs={[["fav", "Favoris"], ["recent", "Récents"], ["search", "Rechercher"], ["recipes", "Recettes"], ["reuse", "Repas déjà faits"], ["new", "Nouvel aliment"]]} value={tab} onChange={setTab} />
+        <Tabs tabs={[["say", "Dire ce que j’ai mangé"], ["fav", "Favoris"], ["recent", "Récents"], ["search", "Rechercher"], ["recipes", "Recettes"], ["reuse", "Repas déjà faits"], ["new", "Nouvel aliment"]]} value={tab} onChange={setTab} />
         {(tab === "search") && <div className="row"><input style={{ flex: 1 }} type="search" placeholder="Rechercher un aliment…" aria-label="Rechercher un aliment" value={q} onChange={(e) => setQ(e.target.value)} /><button onClick={searchExt} disabled={q.length < 2} title="Interroge Open Food Facts avec ce seul terme">Source externe</button></div>}
         {ext && <div className="stack" style={{ marginTop: 8 }}>{ext.unavailable ? <Notice>{ext.message}</Notice> : ext.products.length === 0 ? <p className="muted">Aucun résultat externe.</p> : ext.products.map((p, i) => <div className="item" key={i}><div className="grow"><b>{p.name}</b> <span className="muted small">{p.brand}</span><div className="small muted">{nf(p.kcal, 0)} kcal/100 g · Open Food Facts</div></div><button onClick={() => importExt(p)}>Copier</button></div>)}<p className="small muted">Seul le terme recherché est transmis à Open Food Facts (licence ODbL).</p></div>}
-        {tab === "new" ? <FoodForm onCancel={() => setTab("search")} onSaved={async (key) => { const l = await api(`/foods?q=`); const f = l.foods.find((x: Food) => x.food_key === key); if (f) pick("food", f); }} />
+        {tab === "say" ? <SayMeal onCategory={(c) => { if (!basket.length) { setCat(c); setCustom(false); } }} onUrl={(u) => { setImpUrl(u); setImp(true); }} onAdd={addFromSay} />
+          : tab === "new" ? <FoodForm onCancel={() => setTab("search")} onSaved={async (key) => { const l = await api(`/foods?q=`); const f = l.foods.find((x: Food) => x.food_key === key); if (f) pick("food", f); }} />
           : tab === "reuse" ? <div>
               <h3>Mes repas types</h3>
               {tpls === null ? <p className="muted">Chargement…</p> : tpls.length === 0 ? <p className="small muted">Aucun repas type pour l’instant. Cochez « Mémoriser comme repas type » en enregistrant un repas, ou mémorisez-en un depuis le journal.</p> : tpls.map((t) => <div className="item" key={t.id}><div className="grow"><b>{t.name}</b> <span className="badge">{t.category}</span><div className="small muted">{t.count} élément{t.count > 1 ? "s" : ""}{t.kcal != null ? ` · ${nf(t.kcal, 0)} kcal` : ""}{t.missing ? ` · ${t.missing} indisponible(s)` : ""}</div></div><button onClick={() => loadItems(t.items, t.category)}>Utiliser</button><button className="ghost" aria-label={`Supprimer le repas type ${t.name}`} onClick={async () => { await api(`/meal-templates/${t.id}`, { method: "DELETE" }); setTpls(tpls.filter((x) => x.id !== t.id)); }}>✕</button></div>)}
@@ -154,7 +160,7 @@ export default function MealAdder({ date, defaultCategory, onClose, onAdded }: {
               {recents === null ? <p className="muted">Chargement…</p> : recents.length === 0 ? <p className="small muted">Vos prochains repas apparaîtront ici pour être repris en un geste.</p> : recents.map((m, i) => <div className="item" key={i}><div className="grow"><b>{m.category}</b> <span className="small muted">{fmtShort(m.date)}{m.kcal != null ? ` · ${nf(m.kcal, 0)} kcal` : ""}</span><div className="small muted">{m.label}</div></div><button onClick={() => loadItems(m.items, m.category)}>Reprendre</button></div>)}
               <p className="small muted">Les aliments reprennent leurs valeurs actuelles ; les quantités d’origine restent modifiables avant d’enregistrer.</p>
             </div>
-          : tab === "recipes" ? (<><button style={{ marginBottom: 8 }} onClick={() => setImp(true)}>Importer une recette depuis une adresse web</button>{recipes.length ? recipes.map((r) => <div className="item" key={r.id}><div className="grow"><b>{r.title}</b><div className="small muted">{r.servings} portion(s){r.perServing?.kcal != null ? ` · ${nf(r.perServing.kcal, 0)} kcal/portion` : ""}</div></div><button onClick={() => pick("recipe", r)}>Choisir</button></div>) : <p className="empty">Aucune recette. Créez-en une depuis Alimentation → Recettes, ou importez-en une depuis une adresse web.</p>}</>)
+          : tab === "recipes" ? (<><button style={{ marginBottom: 8 }} onClick={() => { setImpUrl(undefined); setImp(true); }}>Importer une recette depuis une adresse web</button>{recipes.length ? recipes.map((r) => <div className="item" key={r.id}><div className="grow"><b>{r.title}</b><div className="small muted">{r.servings} portion(s){r.perServing?.kcal != null ? ` · ${nf(r.perServing.kcal, 0)} kcal/portion` : ""}</div></div><button onClick={() => pick("recipe", r)}>Choisir</button></div>) : <p className="empty">Aucune recette. Créez-en une depuis Alimentation → Recettes, ou importez-en une depuis une adresse web.</p>}</>)
             : foods.length ? foods.map((f) => <div className="item" key={f.id}><div className="grow"><b>{f.name}</b> {f.brand && <span className="muted small">{f.brand}</span>}<div className="small muted">{nf(f.kcal, 0)} kcal/{f.basis === "portion" ? "portion" : f.basis === "100ml" ? "100 ml" : "100 g"}{f.incomplete ? " · macros incomplètes" : ""}{f.public ? "" : " · privé"}</div></div><button onClick={() => pick("food", f)}>Choisir</button></div>)
               : <p className="empty">{tab === "fav" ? "Aucun favori. Cherchez un aliment et ajoutez-le aux favoris depuis Alimentation → Aliments." : tab === "recent" ? "Aucun aliment récent." : "Aucun résultat. Créez un aliment privé avec « Nouvel aliment »."}</p>}
       </> : <>
@@ -174,7 +180,7 @@ export default function MealAdder({ date, defaultCategory, onClose, onAdded }: {
         </div>
       </div>
     </Modal>
-      {imp && <RecipeImport onClose={() => setImp(false)} onSaved={() => { setImp(false); api("/recipes").then((r) => setRecipes(r.recipes)); }} />}
+      {imp && <RecipeImport initialUrl={impUrl} onClose={() => { setImp(false); setImpUrl(undefined); }} onSaved={(saved) => { setImp(false); setImpUrl(undefined); api("/recipes").then((r) => { setRecipes(r.recipes); const rec = r.recipes.find((x: any) => x.recipe_key === saved?.recipe_key); if (rec) { setTab("recipes"); pick("recipe", rec); } }); }} />}
     </>
   );
 }

@@ -8,6 +8,7 @@ export type Parsed = {
   hintMl: number | null;
   optional: boolean;
   vague: boolean;          // « quelques », « un peu de »…
+  size: number;            // « gros », « petit » : 1,3 / 0,7 / 1
 };
 
 const ENT: Record<string, string> = { amp: "&", lt: "<", gt: ">", quot: '"', apos: "'", nbsp: " ", eacute: "é", egrave: "è", ecirc: "ê", euml: "ë", agrave: "à", acirc: "â", auml: "ä", ccedil: "ç", icirc: "î", iuml: "ï", ocirc: "ô", ouml: "ö", ugrave: "ù", ucirc: "û", uuml: "ü", oelig: "œ", rsquo: "’", lsquo: "‘", laquo: "«", raquo: "»", deg: "°", frac12: "½", frac14: "¼", frac34: "¾", hellip: "…", ndash: "–", mdash: "—", times: "×", Eacute: "É", Egrave: "È", Agrave: "À", Ccedil: "Ç" };
@@ -41,7 +42,7 @@ const UNITS: [RegExp, string][] = [
   [new RegExp(String.raw`^(?:cuilleree?s?\s?a\s?soupe|cuil${SPACE}a\s?soupe|c${SPACE}a${SPACE}soupe|c${SPACE}a${SPACE}s|c\.s|cas|cs|tbsps?|tablespoons?|tbs)(?![a-z])\.?`), "cs"],
   [new RegExp(String.raw`^(?:cuilleree?s?\s?a\s?cafe|cuil${SPACE}a\s?cafe|c${SPACE}a${SPACE}cafe|c${SPACE}a${SPACE}c|c\.c|cac|cc|tsps?|teaspoons?)(?![a-z])\.?`), "cc"],
   [new RegExp(String.raw`^(?:cuilleree?s?\s?a\s?dessert|cuil${SPACE}a\s?dessert|c${SPACE}a${SPACE}dessert|c${SPACE}a${SPACE}d)(?![a-z])\.?`), "cd"],
-  [/^(?:pincees?|pointes?(?: de couteau)?)(?![a-z])/, "pincee"], [/^(?:verres?)(?![a-z])/, "verre"], [/^(?:tasses?)(?![a-z])/, "tasse"], [/^(?:cups?)(?![a-z])/, "cup"], [/^(?:mugs?)(?![a-z])/, "mug"], [/^(?:bols?)(?![a-z])/, "bol"],
+  [/^(?:pincees?|pointes? de couteau)(?![a-z])/, "pincee"], [/^(?:verres?)(?![a-z])/, "verre"], [/^(?:tasses?)(?![a-z])/, "tasse"], [/^(?:cups?)(?![a-z])/, "cup"], [/^(?:mugs?)(?![a-z])/, "mug"], [/^(?:bols?)(?![a-z])/, "bol"],
   [/^(?:pots?)(?![a-z])/, "pot"], [/^(?:boites?|conserves?|cans?|tins?|briques?|bocaux?|bocal)(?![a-z])/, "boite"],
   [/^(?:tranches?|slices?)(?![a-z])/, "tranche"], [/^(?:gousses?|cloves?)(?![a-z])/, "gousse"], [/^(?:brins?|sprigs?)(?![a-z])/, "brin"], [/^(?:feuilles?|leaves|leaf)(?![a-z])/, "feuille"],
   [/^(?:branches?|tiges?|stalks?)(?![a-z])/, "branche"], [/^(?:bouquets?|bunch(?:es)?|bottes?)(?![a-z])/, "bouquet"], [/^(?:sachets?|packets?|enveloppes?)(?![a-z])/, "sachet"],
@@ -49,15 +50,19 @@ const UNITS: [RegExp, string][] = [
   [/^(?:noix|noisettes?)(?= (?:de |d')(?:beurre|margarine|ghee|saindoux|graisse))/, "noix"],
   [/^(?:filets?)(?= (?:d'|de )(?:huile|vinaigre|jus|sauce|citron))/, "filet"],
   [/^(?:morceaux?|pieces?|pcs?|bouts?|rondelles?)(?![a-z])\.?/, "morceau"], [/^(?:paquets?|packs?|barquettes?|plaquettes?)(?![a-z])/, "paquet"], [/^(?:rouleaux?)(?![a-z])/, "rouleau"],
+  [/^(?:parts?)(?![a-z])/, "part"], [/^(?:portions?)(?![a-z])/, "portion"], [/^(?:assiettes?)(?![a-z])/, "assiette"], [/^(?:canettes?|cannettes?)(?![a-z])/, "canette"], [/^(?:bouteilles?)(?![a-z])/, "bouteille"],
+  [/^(?:boules?)(?![a-z])/, "boule"], [/^(?:barres?)(?![a-z])/, "barre"], [/^(?:coupes?)(?![a-z])/, "coupe"], [/^(?:louches?)(?![a-z])/, "louche"],
   [/^(?:batonnets?|batons?|sticks?)(?![a-z])/, "batonnet"], [/^(?:oz|ounces?)(?![a-z])\.?/, "oz"], [/^(?:lbs?|pounds?)(?![a-z])\.?/, "lb"],
 ];
-const LEAD = /^(?:(?:environ|env\.?|about|approx\.?)\s+)?(?:(?:de|du|des|d'|d’|of)\s*|de la\s+|de l'|de l’)?/i;
+/** Unités qu'on peut lire sans nombre devant (« bol de céréales », « part de pizza ») : jamais g, ml, l… qui se confondraient avec un mot (« l'eau »). */
+const IMPLICIT = new Set(["part", "portion", "assiette", "boule", "barre", "coupe", "bol", "verre", "tasse", "mug", "pot", "boite", "tranche", "gousse", "morceau", "paquet", "sachet", "canette", "bouteille", "carre", "poignee", "brin", "feuille", "branche", "bouquet", "louche", "cs", "cc", "cd", "pincee", "noix", "filet"]);
+const LEAD = /^(?:(?:environ|env\.?|about|approx\.?)\s+)?(?:(?:de la|des|du|de|of)\s+|(?:de l|d)['’]\s*)?/i;
 
 export function parseIngredient(rawIn: string): Parsed {
   const raw = decodeEntities(String(rawIn ?? "")).replace(/[   \t\r\n]+/g, " ").trim();
   let s = raw.replace(/[½¼¾⅓⅔⅛⅜⅝⅞⅕]/g, (m) => ` ${FRAC[m]} `).replace(/\s+/g, " ").trim().replace(/^[-•*·▪●\s]+/, "").replace(/\((?:s|e|es|x)\)/gi, "");
   const optional = /facultatif|optionnel|optional|\(option\)|si (?:vous )?(?:le )?(?:souhaitez|désirez|voulez)/i.test(raw);
-  let qty: number | null = null, unit: string | null = null, vague = false;
+  let qty: number | null = null, unit: string | null = null, vague = false, size = 1;
   let f = fold(s);
 
   // « quelques », « un peu de »
@@ -82,8 +87,12 @@ export function parseIngredient(rawIn: string): Parsed {
   }
   s = s.replace(/^\s+/, ""); f = f.replace(/^\s+/, "");
 
-  // unité
-  if (qty != null || vague) for (const [re, u] of UNITS) { const m = f.match(re); if (m) { unit = u; s = s.slice(m[0].length); f = f.slice(m[0].length); break; } }
+  // « gros », « petite »… juste après la quantité (sauf dans « petits pois », « petit suisse »…)
+  const sz = f.match(/^(gros|grosse|grosses|grand|grande|grands|grandes|petit|petite|petits|petites|mini|moyen|moyenne|moyens|moyennes)\s+(?!pois|suisse|beurre|dejeuner|four|gateau|gateaux|sale|sel|ecolier|marnier|veneur)/);
+  if (sz) { size = /^(gros|grand)/.test(sz[1]) ? 1.3 : /^(petit|mini)/.test(sz[1]) ? 0.7 : 1; s = s.slice(sz[0].length); f = f.slice(sz[0].length); }
+
+  // unité (sans nombre devant, seules les unités sûres sont lues : « une part de », « bol de »)
+  for (const [re, u] of UNITS) { const m = f.match(re); if (m && (qty != null || vague || IMPLICIT.has(u))) { unit = u; if (qty == null && !vague) qty = 1; s = s.slice(m[0].length); f = f.slice(m[0].length); break; } }
   s = s.replace(/^\s+/, ""); f = f.replace(/^\s+/, "");
 
   // « de 500 g de … » après une unité de conditionnement ; indication entre parenthèses
@@ -100,15 +109,16 @@ export function parseIngredient(rawIn: string): Parsed {
   let name = s.replace(/\([^)]*\)/g, " ").trim().replace(LEAD, "");
   name = name.split(/[,;:]|\s[-–—]\s/)[0];
   name = name.replace(/\b(?:plus|et un peu|avec un peu|pour (?:servir|la cuisson|la po[eê]le|dorer|saupoudrer|le moule|graisser|d[ée]corer|la finition|la garniture|la friture|frire|le service)|to serve|for frying|selon (?:le )?(?:go[uû]t|envie)|[àa] volont[ée]|au choix|au go[uû]t|facultatif|optionnel|optional)\b.*$/i, "");
+  name = name.replace(/\b(gros|grosse|grosses|grand|grande|grands|grandes|petit|petite|petits|petites|mini)\b(?!\s+(?:pois|suisse|beurre|d[ée]jeuner|four|g[âa]teau|g[âa]teaux|sal[ée]|sel|[ée]colier|marnier|veneur))/gi, " ");
   name = name.replace(LEAD, "").replace(/\s+/g, " ").trim().replace(/[.\s]+$/, "");
   // « 1 cube de bouillon de volaille » : le cube est l'aliment
   if (unit === "cube" && /^bouillon|^fond/i.test(fold(name))) name = "cube de bouillon";
   if (!name) name = raw.replace(/^[\d\s.,/½¼¾]+/, "").trim() || raw;
-  return { raw, qty, unit, name, hintG, hintMl, optional, vague };
+  return { raw, qty, unit, name, hintG, hintMl, optional, vague, size };
 }
 
 // ---- mots utiles au rapprochement ----
-const STOP = new Set(["de", "du", "des", "d", "la", "le", "les", "l", "un", "une", "et", "ou", "au", "aux", "en", "a", "avec", "sans", "pour", "sur", "dans", "of", "the", "and", "or", "with", "to", "some", "pas", "tres", "bien", "assez", "environ", "bio", "frais", "fraiche", "fraichement", "gros", "grosse", "petit", "petite", "moyen", "moyenne", "grand", "grande", "beau", "belle", "entier", "entiere", "nature", "naturel", "emince", "hache", "rape", "fondu", "coupe", "pele", "lave", "egoutte", "ramolli", "tranche", "surgele", "maison", "extra", "fin", "fine", "bonne", "qualite", "type", "ferme", "pret", "mou", "doux", "large", "plat", "ordinaire", "classique", "du", "commerce", "decortique", "denoyaute", "non", "traite", "traitee"]);
+const STOP = new Set(["de", "du", "des", "d", "la", "le", "les", "l", "un", "une", "et", "ou", "au", "aux", "en", "a", "avec", "sans", "pour", "sur", "dans", "of", "the", "and", "or", "with", "to", "some", "pas", "tres", "bien", "assez", "environ", "bio", "frais", "fraiche", "fraichement", "beau", "belle", "nature", "naturel", "emince", "hache", "rape", "fondu", "coupe", "pele", "lave", "egoutte", "ramolli", "tranche", "surgele", "maison", "extra", "fin", "fine", "bonne", "qualite", "type", "ferme", "pret", "mou", "doux", "large", "ordinaire", "classique", "du", "commerce", "decortique", "denoyaute", "non", "traite", "traitee"]);
 const KEEP_S = new Set(["noix", "pois", "mais", "cassis", "anis", "bois", "brebis", "fois", "riz", "mous", "jus", "radis", "frais", "gras", "bras", "temps", "colis", "coulis", "fonds", "pas", "dos", "tres", "maïs", "ananas", "lilas", "palais", "poids", "souris", "pastis", "pain", "persil", "basilic", "ail", "sel"]);
 const stem = (t: string): string => (t.length > 3 && /[sx]$/.test(t) && !KEEP_S.has(t) ? t.slice(0, -1) : t);
 export type State = "cuit" | "cru" | "sec" | null;
@@ -116,7 +126,9 @@ export type State = "cuit" | "cru" | "sec" | null;
 export function tokens(text: string): { toks: string[]; state: State } {
   const f = fold(text).replace(/œ/g, "oe").replace(/æ/g, "ae").replace(/['’`]/g, " ").replace(/[^a-z0-9]+/g, " ").trim();
   let state: State = null; const toks: string[] = [];
+  const meat = /\b(boeuf|viande|steak|porc|veau|dinde|poulet|agneau)\b/.test(f); // « haché » distingue le bœuf haché du bœuf, pas l'oignon haché de l'oignon
   for (const raw of f.split(" ")) {
+    if (meat && /^hach(e|ee|es|ees)$/.test(raw)) { toks.push("hache"); continue; }
     if (!raw) continue;
     if (/^(cuit|cuite|cuits|cuites)$/.test(raw)) { state = "cuit"; continue; }
     if (/^(cru|crue|crus|crues)$/.test(raw)) { state ??= "cru"; continue; }

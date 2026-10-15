@@ -108,13 +108,13 @@ function snapshot(user: User, b: any) {
     const f = b.food_id ? foodById(user.id, str(b.food_id, "Aliment")) : latestFood(user.id, str(b.key, "Aliment"));
     if (!f) throw notFound("Aliment introuvable.");
     const c = computeFood(toBasis(f), qty, unit);
-    return { kind, ref_id: f.id, label: f.name + (f.brand ? ` (${f.brand})` : ""), qty, unit, c };
+    return { kind, ref_id: f.id, label: f.name + (f.brand ? ` (${f.brand})` : ""), qty, unit, c: b.approx === true ? { ...c, estimated: true } : c }; // approx : quantité estimée (saisie libre) → énergie marquée « estimée »
   }
   const r = b.recipe_id ? get<RecipeRow>("SELECT * FROM recipes WHERE id=? AND user_id=?", str(b.recipe_id, "Recette"), user.id) : latestRecipe(user.id, str(b.key, "Recette"));
   if (!r) throw notFound("Recette introuvable.");
   const totals = recipeTotals(user.id, r);
   const c = recipePortion({ servings: r.servings, finalWeight: r.final_weight, totals }, unit === "portion" ? { mode: "portion", fraction: qty } : { mode: "grams", grams: qty });
-  return { kind, ref_id: r.id, label: r.title, qty, unit, c };
+  return { kind, ref_id: r.id, label: r.title, qty, unit, c: b.approx === true ? { ...c, estimated: true } : c };
 }
 
 const sourceUrl = (v: unknown): string | null => { if (!v) return null; try { const u = new URL(String(v)); return /^https?:$/.test(u.protocol) && !u.username && !u.password ? u.toString().slice(0, 500) : null; } catch { return null; } };

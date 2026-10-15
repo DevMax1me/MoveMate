@@ -1,5 +1,5 @@
 "use client";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api } from "@/lib/client";
 import { Field, Modal, Notice, toast } from "@/components/ui";
 import { nf } from "@/lib/client";
@@ -8,7 +8,7 @@ import { toAmount, lineNutrients, type FoodLite } from "@/lib/recipe-amount";
 import type { Parsed } from "@/lib/recipe-parse";
 
 type Cand = { food_key: string; score: number; food: FoodLite & { private?: boolean } };
-type Row = { raw: string; parsed: Parsed; cands: Cand[]; food: (FoodLite & { private?: boolean }) | null; amount: string; unit: "g" | "ml"; negligible: boolean; ignored: boolean; how: string; approx: boolean; confidence: string };
+type Row = { raw: string; parsed: Parsed; cands: Cand[]; food: (FoodLite & { private?: boolean }) | null; amount: string; unit: "g" | "ml" | "portion"; negligible: boolean; ignored: boolean; how: string; approx: boolean; confidence: string };
 
 const fromPreview = (d: any): Row[] => d.lines.map((l: any): Row => {
   const food = l.chosen ? l.candidates.find((c: Cand) => c.food_key === l.chosen)?.food ?? null : null;
@@ -16,19 +16,20 @@ const fromPreview = (d: any): Row[] => d.lines.map((l: any): Row => {
   return { raw: l.raw, parsed: l.parsed, cands: l.candidates, food, amount: a && !a.negligible ? String(+a.qty.toFixed(1)) : "", unit: a?.unit ?? (food?.basis === "100ml" ? "ml" : "g"), negligible: !!a?.negligible, ignored: !!l.parsed.optional, how: a?.how ?? "", approx: !!a?.approx, confidence: l.confidence };
 });
 
-export default function RecipeImport({ onClose, onSaved }: { onClose: () => void; onSaved: () => void }) {
-  const [mode, setMode] = useState<"url" | "text">("url"), [url, setUrl] = useState(""), [text, setText] = useState(""), [textTitle, setTextTitle] = useState(""), [textServ, setTextServ] = useState("");
+export default function RecipeImport({ onClose, onSaved, initialUrl }: { onClose: () => void; onSaved: (r?: { recipe_key: string }) => void; initialUrl?: string }) {
+  const [mode, setMode] = useState<"url" | "text">("url"), [url, setUrl] = useState(initialUrl ?? ""), [text, setText] = useState(""), [textTitle, setTextTitle] = useState(""), [textServ, setTextServ] = useState("");
   const [busy, setBusy] = useState(false), [err, setErr] = useState<string | null>(null);
   const [prev, setPrev] = useState<any | null>(null), [rows, setRows] = useState<Row[]>([]), [title, setTitle] = useState(""), [servings, setServings] = useState("4"), [keepSteps, setKeepSteps] = useState(false);
   const [more, setMore] = useState<number | null>(null), [q, setQ] = useState(""), [found, setFound] = useState<any[]>([]);
 
-  async function analyse() {
+  async function analyse(u?: string) {
     setErr(null); setBusy(true);
     try {
-      const d = await api("/recipes/import/preview", { body: mode === "url" ? { url } : { text, title: textTitle, servings: textServ ? parseNum(textServ) : undefined } });
+      const d = await api("/recipes/import/preview", { body: mode === "url" ? { url: u ?? url } : { text, title: textTitle, servings: textServ ? parseNum(textServ) : undefined } });
       setPrev(d); setRows(fromPreview(d)); setTitle(d.title); setServings(String(d.servings)); setKeepSteps(false); setMore(null);
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   }
+  useEffect(() => { if (initialUrl) analyse(initialUrl); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const upd = (i: number, p: Partial<Row>) => setRows((r) => r.map((x, k) => (k === i ? { ...x, ...p } : x)));
   function pickFood(i: number, food: (FoodLite & { private?: boolean }) | null) {
     if (!food) return upd(i, { food: null, amount: "", ignored: true });
@@ -55,8 +56,8 @@ export default function RecipeImport({ onClose, onSaved }: { onClose: () => void
     setErr(null); setBusy(true);
     try {
       const ingredients = rows.filter((r) => !r.ignored && r.food && parseNum(r.amount)).map((r) => ({ key: r.food!.food_key, qty: parseNum(r.amount), unit: r.unit }));
-      await api("/recipes", { body: { title: title.trim(), servings: sv, time_min: prev.time_min, tags: ["importée"], steps: keepSteps ? prev.steps : "", source_url: prev.source_url, ingredients } });
-      toast("Recette enregistrée"); onSaved();
+      const saved = await api("/recipes", { body: { title: title.trim(), servings: sv, time_min: prev.time_min, tags: ["importée"], steps: keepSteps ? prev.steps : "", source_url: prev.source_url, ingredients } });
+      toast("Recette enregistrée"); onSaved(saved);
     } catch (e: any) { setErr(e.message); } finally { setBusy(false); }
   }
 
@@ -75,7 +76,7 @@ export default function RecipeImport({ onClose, onSaved }: { onClose: () => void
       <div className="inline"><Field label="Titre" hint="facultatif"><input value={textTitle} onChange={(e) => setTextTitle(e.target.value)} /></Field><Field label="Portions" hint="facultatif"><input inputMode="decimal" value={textServ} onChange={(e) => setTextServ(e.target.value)} /></Field></div>
       <p className="small muted">Pratique quand un site bloque la lecture automatique : copiez la liste des ingrédients de la page et collez-la ici.</p>
     </>}
-    <div className="row"><button className="primary" disabled={busy || (mode === "url" ? !url.trim() : !text.trim())} onClick={analyse}>{busy ? "Analyse en cours…" : "Analyser la recette"}</button><button onClick={onClose}>Annuler</button></div>
+    <div className="row"><button className="primary" disabled={busy || (mode === "url" ? !url.trim() : !text.trim())} onClick={() => analyse()}>{busy ? "Analyse en cours…" : "Analyser la recette"}</button><button onClick={onClose}>Annuler</button></div>
   </Modal>;
 
   return <Modal title="Vérifier la recette importée" onClose={onClose}>
@@ -104,7 +105,7 @@ export default function RecipeImport({ onClose, onSaved }: { onClose: () => void
             </select>
             <div className="irow-q">
               <input inputMode="decimal" aria-label={`Quantité pour « ${r.raw} »`} value={r.amount} placeholder="?" onChange={(e) => upd(i, { amount: e.target.value })} style={{ width: 84 }} />
-              <select aria-label="Unité" value={r.unit} onChange={(e) => upd(i, { unit: e.target.value as "g" | "ml" })} style={{ width: 72 }}><option>g</option><option>ml</option></select>
+              <select aria-label="Unité" value={r.unit} onChange={(e) => upd(i, { unit: e.target.value as "g" | "ml" | "portion" })} style={{ width: 84 }}><option>g</option><option>ml</option>{r.food && (r.food.basis === "portion" || r.food.portion_g || r.food.portion_ml) && <option value="portion">portion</option>}</select>
               <div className="irow-kcal">{n?.kcal != null ? <b>{nf(n.kcal, 0)} kcal</b> : <span className="muted">—</span>}</div>
             </div>
           </div>
