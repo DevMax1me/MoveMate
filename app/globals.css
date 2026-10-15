@@ -176,3 +176,7 @@ button.vid.vid-start:hover{filter:brightness(1.08);border:0}.vid-start .play{wid
 .recap{margin:.4rem 0 .6rem;border-radius:18px;background:var(--soft);padding:2px 8px}.recap>summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px;min-height:48px}.recap>summary::-webkit-details-marker{display:none}
 .recap-strip{flex:none;width:132px}.recap-strip .strip{margin:0;padding:3px 2px}.recap-strip .strip svg{height:48px}.recap[open]{padding-bottom:8px}
 .recap-more{display:block;font-weight:700;color:var(--zone);margin-top:.1rem}.recap[open] .recap-more{display:none}
+/* import de recette : une carte par ligne d'ingrédient */
+.irow{border:1.5px solid var(--line);border-radius:20px;padding:10px 12px;margin-bottom:8px;background:var(--card)}.irow.off{opacity:.55}.irow.need{border-color:var(--warn)}
+.irow-raw{font-weight:650;font-size:.92rem;min-width:0;overflow-wrap:anywhere}.irow-grid{display:grid;grid-template-columns:1fr;gap:6px;margin:6px 0 4px;align-items:center}.irow-q{display:flex;align-items:center;gap:.4rem}.irow-kcal{flex:1;text-align:right;font-size:.9rem;white-space:nowrap}
+@media(min-width:560px){.irow-grid{grid-template-columns:minmax(0,1.5fr) minmax(0,1fr)}}

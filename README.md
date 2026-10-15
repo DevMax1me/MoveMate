@@ -40,6 +40,18 @@ Le catalogue compte plus de 700 fiches ; l'écran « Exercices » aide à reconn
 4. **Comprendre sans connaître les noms** : chaque fiche a une explication « En clair » (ce que fait le mouvement, avec quel matériel, quels muscles) et les mots de salle du nom sont expliqués (iso-latéral, prise marteau, Smith machine, hip thrust, roumain…), générés par des règles dans `lib/explain.ts`. Le même sélecteur guidé (muscle → schéma → « C’est quoi ? » → Choisir) sert à ajouter un exercice à une routine ou à une séance, et chaque exercice déjà choisi garde sa vignette, ses muscles et son explication repliable (`components/ExerciseParts.tsx`, `GET /exercise-brief`).
 5. **Exercices qui ressemblent** : même zone du corps, même famille de mouvement, matériel compatible d'abord.
 
+## Importer une recette depuis une adresse web
+
+Alimentation → Recettes (ou « Ajouter un repas » → Recettes) → **Importer depuis une adresse web**. L'utilisateur colle une adresse ; le serveur télécharge la page **une seule fois**, lit la recette, rapproche chaque ingrédient d'un aliment, convertit les quantités et calcule calories et macros. Rien n'est enregistré avant la validation d'un aperçu où chaque ligne reste modifiable.
+
+- **Lecture** (`lib/recipe-extract.ts`) : données structurées schema.org de la page (JSON-LD, sinon microdonnées) — titre, portions, durée, ingrédients, étapes, et la nutrition annoncée par le site quand elle existe, comparée au calcul (écart signalé au-delà de 25 %). Vérifié sur des pages réelles (Ricardo, 750g, Marmiton, CuisineAZ, BBC Good Food).
+- **Lignes d'ingrédients** (`lib/recipe-parse.ts`) : « 500g de fraises », « 1 boîte(s) Pois chiches », « 3 c. à soupe d'huile », « 1½ tasse », « 2 à 3 », « 2 x 400 g », « 227 g (8 oz) de… », fractions, nombres en lettres, anglais courant.
+- **Rapprochement et conversion** (`lib/recipe-match.ts`, `lib/recipe-amount.ts`) : synonymes (« oeufs entiers », « blanc de poulet », « crème fraîche »…), **cru préféré au cuit** sauf mention contraire (les recettes listent des quantités crues), aliments à soi prioritaires, poids moyens des pièces (oignon, œuf, gousse d'ail…), conditionnements (boîte de tomates 400 g), cuillères avec densité (une cuillère de miel ≠ de farine). Une quantité inconnue reste « à préciser » : jamais zéro silencieux. Sel, poivre, épices et eau sans quantité sont indiqués comme négligeables.
+- **Catalogue** : environ 165 ingrédients courants s'ajoutent aux aliments de base (`lib/ingredients.ts`), valeurs **indicatives** à valider, comme le reste du catalogue générique.
+- **Droits** : seuls ingrédients, quantités et lien « source » sont repris ; le texte de préparation n'est conservé que si l'utilisateur le demande (usage personnel).
+- **Sécurité** (`lib/safe-fetch.ts`) : le serveur ne doit pas servir de relais vers le réseau interne. http(s) seulement, ports standards, pas d'identifiants, adresses privées/locales/réservées refusées (y compris IPv6 enveloppant une IPv4), contrôle **à la connexion** (pas de seconde résolution DNS, donc pas de « DNS rebinding »), redirections suivies une à une et revalidées, taille comptée après décompression, durée et type de contenu bornés, limite de 12 imports par 10 minutes et par compte.
+- **Limites** : certains sites refusent la lecture automatique (Marmiton, CuisineAZ, BBC Good Food, AllRecipes… répondent « 403 » à un robot qui s'identifie honnêtement) ; l'onglet **Coller le texte** (liste des ingrédients copiée depuis la page) fonctionne partout. `RECIPE_IMPORT_USER_AGENT` permet de changer l'identifiant envoyé, à n'utiliser que si les conditions du site l'autorisent ; `RECIPE_IMPORT_ALLOW` (hôte:port) sert aux tests.
+
 ## Architecture (variante « application intégrée » du §19)
 
 - **Next.js 15 (App Router) + TypeScript** : interface React et API dans un seul déploiement. Les règles métier sont
@@ -94,7 +106,7 @@ Le catalogue compte plus de 700 fiches ; l'écran « Exercices » aide à reconn
 
 ```
 app/            pages (public, (app)/ écrans connectés) et API
-components/     Shell, graphiques, saisie de repas, carte des muscles, schémas de mouvement, formulaires
+components/     Shell, graphiques, saisie de repas, import de recette, carte des muscles, schémas de mouvement, formulaires
 lib/            calc, agent, equipment, db, seed, auth, http, provider, api/*
 tests/          unitaires, évaluation agent, e2e
 scripts/        e2e.sh, seed-demo.mjs

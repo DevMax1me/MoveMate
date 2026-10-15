@@ -13,6 +13,8 @@ export default function Privacy() {
       <p>Adresse électronique, mot de passe (haché), journal alimentaire, pesées et mensurations facultatives, séances, activités, notes, profil de mode de vie. Pas d’adresse postale, de géolocalisation, de dossier médical ni de contacts.</p>
       <h2>Agent personnalisé</h2>
       <p>Facultatif. Avant activation, l’écran « Mon agent » indique précisément ce qui est transmis à un éventuel fournisseur, pourquoi et pour combien de temps. Sans fournisseur configuré, l’agent fonctionne localement. Le retrait de l’activation arrête les envois ; vous pouvez effacer la mémoire associée.</p>
+      <h2>Import de recettes et sources externes</h2>
+      <p>Deux fonctions contactent un site tiers, uniquement quand vous le demandez : la recherche d’un produit dans Open Food Facts (seul le terme cherché est transmis) et l’import d’une recette depuis une adresse web. Dans ce second cas, c’est le serveur de l’application qui télécharge la page indiquée, une seule fois ; le site ne reçoit ni votre adresse IP ni votre compte. L’adresse saisie n’est conservée que si vous enregistrez la recette (comme lien « source »). Les adresses de réseaux privés ou locaux sont refusées.</p>
       <h2>Conservation</h2>
       <ul>
         <li>Journaux et carnet : pendant l’usage du compte ; avertissement après 24 mois d’inactivité.</li>

@@ -1,6 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import crypto from "node:crypto";
 import { buildCatalog } from "./catalog-exercises";
+import { INGREDIENTS } from "./ingredients";
 
 const id = () => crypto.randomBytes(12).toString("base64url");
 const now = () => new Date().toISOString();
@@ -125,17 +126,28 @@ export function seedCatalog(db: DatabaseSync) {
     for (const e of buildCatalog()) upd.run(e.pattern, e.slug);
     db.exec("COMMIT");
   } catch (err) { db.exec("ROLLBACK"); throw err; }
-  const nf = (db.prepare("SELECT COUNT(*) c FROM foods WHERE user_id IS NULL").get() as { c: number }).c;
-  if (nf === 0) {
-    const ins = db.prepare(`INSERT INTO foods(id,food_key,version,user_id,name,basis,portion_g,portion_ml,portion_label,density,kcal,protein,carbs,fat,fiber,source,license,created_at)
-      VALUES(?,?,1,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  // aliments génériques : on n'ajoute que les fiches absentes (fonctionne aussi sur une base existante)
+  const haveFood = new Set((db.prepare("SELECT food_key FROM foods WHERE user_id IS NULL").all() as { food_key: string }[]).map((r) => r.food_key));
+  const insFood = db.prepare(`INSERT INTO foods(id,food_key,version,user_id,name,basis,portion_g,portion_ml,portion_label,density,kcal,protein,carbs,fat,fiber,source,license,created_at)
+    VALUES(?,?,1,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`);
+  const GEN_SRC = "Catalogue générique Terminator (valeurs indicatives, à valider)", GEN_LIC = "À valider avant diffusion";
+  db.exec("BEGIN");
+  try {
     for (const f of FOODS) {
       const key = "gen-" + f[0].toLowerCase().normalize("NFD").replace(/[^a-z0-9]+/g, "-");
+      if (haveFood.has(key)) continue;
       const isMl = f[1] === "100ml";
-      ins.run(id(), key, f[0], f[1], isMl ? null : f[7], isMl ? f[7] : null, f[8], f[9], f[2], f[3], f[4], f[5], f[6],
-        "Catalogue générique Terminator (valeurs indicatives, à valider)", "À valider avant diffusion", now());
+      insFood.run(id(), key, f[0], f[1], isMl ? null : f[7], isMl ? f[7] : null, f[8], f[9], f[2], f[3], f[4], f[5], f[6], GEN_SRC, GEN_LIC, now());
+      haveFood.add(key);
     }
-  }
+    for (const g of INGREDIENTS) {
+      const key = "gen-" + g[0].toLowerCase().normalize("NFD").replace(/\p{M}/gu, "").replace(/œ/g, "oe").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+      if (haveFood.has(key)) continue;
+      insFood.run(id(), key, g[0], "100g", g[6], null, g[7], g[8], g[1], g[2], g[3], g[4], g[5], GEN_SRC, GEN_LIC, now());
+      haveFood.add(key);
+    }
+    db.exec("COMMIT");
+  } catch (err) { db.exec("ROLLBACK"); throw err; }
   const nr = (db.prepare("SELECT COUNT(*) c FROM routines WHERE demo=1").get() as { c: number }).c;
   if (nr === 0) {
     const ins = db.prepare("INSERT INTO routines(id,routine_key,version,user_id,name,place,items,demo,created_at) VALUES(?,?,1,NULL,?,?,?,1,?)");

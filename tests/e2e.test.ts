@@ -1,5 +1,6 @@
 // Recette fonctionnelle bout en bout (cahier §23–25). Lancer avec : npm run test:e2e
 import { describe, it, expect, beforeAll } from "vitest";
+import http from "node:http";
 
 const BASE = process.env.E2E_URL;
 const d = BASE ? describe : describe.skip;
@@ -281,6 +282,71 @@ d("recette bout en bout", () => {
     expect(Object.keys((await C.get("/exercise-brief")).json.brief).length).toBe(0);
     const many = Array.from({ length: 120 }, (_, i) => `x${i}`).join(",");
     expect((await C.get(`/exercise-brief?keys=${many}`)).status).toBe(200);
+  });
+
+  it("import de recette : aperçu calculé depuis un texte collé, adresses internes refusées", async () => {
+    const C = await signup("import@test.fr");
+    expect((await new Client("anonyme").post("/recipes/import/preview", { text: "1 oeuf" })).status).toBe(401);
+    const t = await C.post("/recipes/import/preview", { text: "300 g de farine\n3 oeufs\n60 cl de lait\n2 c. à soupe de sucre\nsel", title: "Crêpes", servings: 10 });
+    expect(t.status, JSON.stringify(t.json)).toBe(200);
+    expect(t.json.lines).toHaveLength(5); expect(t.json).toMatchObject({ title: "Crêpes", servings: 10, via: "texte", source_url: null });
+    expect(t.json.lines[0].candidates[0].food.name).toMatch(/Farine/); expect(t.json.lines[0].amount.qty).toBe(300); expect(t.json.lines[1].amount.qty).toBe(165); expect(t.json.lines[4].amount.negligible).toBe(true);
+    expect(t.json.lines[0].candidates[0].food).toMatchObject({ basis: "100g", kcal: expect.any(Number), protein: expect.any(Number) }); // de quoi recalculer côté interface
+    expect(t.json.totals.kcal).toBeGreaterThan(1500); expect(t.json.totals.kcal).toBeLessThan(2000);
+    // rien n'est enregistré par l'aperçu
+    expect((await C.get("/recipes")).json.recipes).toHaveLength(0);
+    // refus : réseau interne, métadonnées cloud, schémas non web, identifiants, ports, texte libre, adresse vide
+    for (const u of ["http://127.0.0.1:3917/api/me", "http://localhost:3917/api/me", "http://169.254.169.254/latest/meta-data/", "http://[::1]/", "http://10.0.0.1/", "http://2130706433/", "http://exemple.fr:8080/", "http://user:pw@exemple.fr/", "file:///etc/passwd", "ftp://exemple.fr/x", "javascript:alert(1)", "pas une adresse", ""]) {
+      const r = await C.post("/recipes/import/preview", { url: u }); expect(r.status, u).toBe(400); expect(r.json.error, u).toBeTruthy();
+    }
+    expect((await C.post("/recipes/import/preview", { text: "   \n  " })).status).toBe(400);
+    expect((await C.post("/recipes/import/preview", { text: Array.from({ length: 81 }, (_, i) => `${i + 1} g de farine`).join("\n") })).status).toBe(400);
+  });
+
+  it("import de recette depuis une adresse : page lue, calcul, redirection suivie, enregistrement avec la source", async () => {
+    const port = Number(process.env.E2E_FIXTURE_PORT || 0);
+    const ldjson = JSON.stringify({ "@context": "https://schema.org", "@type": "Recipe", name: "Pâte à crêpes de test", recipeYield: "15 crêpes", totalTime: "PT40M",
+      recipeIngredient: ["300 g de farine", "3 oeufs entiers", "3 cuillères à soupe de sucre", "2 cuillères à soupe d'huile", "50 g de beurre fondu", "60 cl de lait", "5 cl de rhum"],
+      recipeInstructions: [{ "@type": "HowToStep", text: "Mélanger tout." }], nutrition: { calories: "167 calories", servingSize: "83.3 grams", proteinContent: "5.6 g" } });
+    const srv = http.createServer((req, res) => {
+      if (req.url === "/recette") { res.writeHead(200, { "content-type": "text/html; charset=utf-8" }); return res.end(`<html><head><script type="application/ld+json">${ldjson}</script></head><body>Recette</body></html>`); }
+      if (req.url === "/ancienne") { res.writeHead(301, { location: "/recette" }); return res.end(); }
+      if (req.url === "/vide") { res.writeHead(200, { "content-type": "text/html" }); return res.end("<html><body><p>Un article sans recette</p></body></html>"); }
+      if (req.url === "/interdit") { res.writeHead(403); return res.end(); }
+      res.writeHead(404); res.end();
+    });
+    const listening = port ? await new Promise<boolean>((ok) => { srv.once("error", () => ok(false)); srv.listen(port, "127.0.0.1", () => ok(true)); }) : false;
+    if (!listening) { console.warn("serveur de fixture indisponible : cas ignoré"); return; }
+    try {
+      const C = await signup("import-url@test.fr"), base = `http://127.0.0.1:${port}`;
+      const r = await C.post("/recipes/import/preview", { url: base + "/ancienne" });
+      expect(r.status, JSON.stringify(r.json)).toBe(200);
+      expect(r.json).toMatchObject({ title: "Pâte à crêpes de test", servings: 15, time_min: 40, via: "json-ld", source_url: base + "/recette", source_host: "127.0.0.1", reported: { kcal: 167, protein: 5.6 } });
+      expect(r.json.lines).toHaveLength(7); expect(r.json.steps).toContain("Mélanger tout.");
+      const perServing = r.json.totals.kcal / 15; expect(perServing).toBeGreaterThan(150); expect(perServing).toBeLessThan(185); // proche des 167 kcal annoncés par la page
+      expect(r.json.lines.every((l: any) => l.chosen && l.amount && l.confidence !== "none")).toBe(true);
+      expect((await C.post("/recipes/import/preview", { url: base + "/vide" })).json.error).toMatch(/Aucune recette détectée/);
+      expect((await C.post("/recipes/import/preview", { url: base + "/interdit" })).json.error).toMatch(/refuse la lecture automatique/);
+      expect((await C.post("/recipes/import/preview", { url: base + "/absente" })).json.error).toMatch(/introuvable/);
+      // enregistrement : mêmes aliments et quantités que l'aperçu, source conservée, étapes non copiées par défaut
+      const ingredients = r.json.lines.map((l: any) => ({ key: l.chosen, qty: l.amount.qty, unit: l.amount.unit }));
+      const saved = await C.post("/recipes", { title: r.json.title, servings: 15, time_min: 40, tags: ["importée"], steps: "", source_url: r.json.source_url, ingredients });
+      expect(saved.status, JSON.stringify(saved.json)).toBe(200);
+      const rec = (await C.get("/recipes")).json.recipes[0];
+      expect(rec).toMatchObject({ title: "Pâte à crêpes de test", source_url: base + "/recette", steps: null }); expect(rec.perServing.kcal).toBeCloseTo(perServing, 0); expect(rec.ingredients).toHaveLength(7);
+      // une adresse de source non web est ignorée ; la modification d'une recette conserve sa source
+      const bad = await C.post("/recipes", { title: "x", servings: 1, source_url: "javascript:alert(1)", ingredients: [{ key: r.json.lines[0].chosen, qty: 100, unit: "g" }] }); expect(bad.status).toBe(200);
+      expect((await C.get("/recipes")).json.recipes.find((x: any) => x.title === "x").source_url).toBeNull();
+      // limite de débit par compte (seules les adresses valides comptent) ; les autres comptes ne sont pas touchés
+      const D = await signup("import-rate@test.fr"); const codes: number[] = [];
+      for (let i = 0; i < 14; i++) codes.push((await D.post("/recipes/import/preview", { url: base + "/vide" })).status);
+      expect(codes.slice(0, 12).every((c) => c === 400)).toBe(true); expect(codes.slice(12)).toEqual([429, 429]);
+      expect((await C.post("/recipes/import/preview", { url: base + "/recette" })).status).toBe(200);
+      const put = await C.put(`/recipes/${rec.recipe_key}`, { version: rec.version, title: "Crêpes (v2)", servings: 15, ingredients });
+      expect(put.status).toBe(200); expect((await C.get("/recipes")).json.recipes.find((x: any) => x.recipe_key === rec.recipe_key).source_url).toBe(base + "/recette");
+      const exp = await C.post("/exports", { format: "json" });
+      expect(JSON.parse((await C.get(exp.json.url.replace("/api", ""))).text).recipes.some((x: any) => x.source_url === base + "/recette")).toBe(true);
+    } finally { await new Promise((ok) => srv.close(ok)); }
   });
 
   it("exercice privé : le type de mouvement choisit le schéma, valeur inconnue ignorée", async () => {

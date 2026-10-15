@@ -4,6 +4,7 @@ import { api, useApi, fmtDate, shiftDate, nf } from "@/lib/client";
 import { useMe } from "@/components/Shell";
 import { DayCard } from "@/components/DayMeals";
 import MealAdder, { FoodForm } from "@/components/MealAdder";
+import RecipeImport from "@/components/RecipeImport";
 import { ErrorBox, Empty, Field, Loading, Modal, Notice, Tabs, toast } from "@/components/ui";
 import { computeFood, sumNutrients, recipePortion, parseNum } from "@/lib/calc";
 
@@ -57,16 +58,17 @@ function Foods() {
 type Ing = { food: any; qty: string; unit: string };
 function Recipes() {
   const { data, error, reload } = useApi<any>("/recipes");
-  const [edit, setEdit] = useState<any | null | false>(false);
+  const [edit, setEdit] = useState<any | null | false>(false), [imp, setImp] = useState(false);
   return <div>
-    <div className="row spread"><p className="muted">Les recettes sont privées. Modifier une recette crée une nouvelle version pour les usages futurs.</p><button className="primary" onClick={() => setEdit(null)}>＋ Recette</button></div>
+    <div className="row spread"><p className="muted">Les recettes sont privées. Modifier une recette crée une nouvelle version pour les usages futurs.</p><div className="row"><button onClick={() => setImp(true)}>Importer depuis une adresse web</button><button className="primary" onClick={() => setEdit(null)}>＋ Recette</button></div></div>
     {error && <ErrorBox error={error} retry={reload} />}
-    {data?.recipes.length === 0 && <Empty>Aucune recette. Créez-en une à partir de vos aliments.</Empty>}
+    {data?.recipes.length === 0 && <Empty>Aucune recette. Créez-en une à partir de vos aliments, ou importez-la depuis une adresse web : les calories sont calculées pour vous.</Empty>}
     <div className="grid g2">{data?.recipes.map((r: any) => <div className="card" key={r.id}>
       <div className="row spread"><b>{r.title}</b><span className="badge">v{r.version}</span></div>
-      <p className="small muted">{r.servings} portion(s){r.time_min ? ` · ${r.time_min} min` : ""}{r.tags.length ? ` · ${r.tags.join(", ")}` : ""}</p>
+      <p className="small muted">{r.servings} portion(s){r.time_min ? ` · ${r.time_min} min` : ""}{r.tags.length ? ` · ${r.tags.join(", ")}` : ""}{r.source_url && <> · <a href={r.source_url} target="_blank" rel="noopener noreferrer nofollow">{new URL(r.source_url).hostname.replace(/^www\./, "")} ↗</a></>}</p>
       <p>{r.perServing?.kcal != null ? <><b>{nf(r.perServing.kcal, 0)} kcal</b> / portion · P {nf(r.perServing.protein)} g</> : "—"}{r.totals.incomplete && <> <span className="badge warn">macros incomplètes</span></>}</p>
       <div className="row"><button onClick={() => setEdit(r)}>Modifier</button><button className="danger" onClick={async () => { await api(`/recipes/${r.recipe_key}`, { method: "DELETE" }); toast("Archivée"); reload(); }}>Archiver</button></div></div>)}</div>
+    {imp && <RecipeImport onClose={() => setImp(false)} onSaved={() => { setImp(false); reload(); }} />}
     {edit !== false && <Modal title={edit ? "Modifier la recette" : "Nouvelle recette"} onClose={() => setEdit(false)}><RecipeEditor recipe={edit} onDone={() => { setEdit(false); reload(); }} /></Modal>}
   </div>;
 }

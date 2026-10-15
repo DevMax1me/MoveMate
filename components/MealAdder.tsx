@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { api, nf, fmtShort } from "@/lib/client";
 import { computeFood, recipePortion, sumNutrients, CalcError, parseNum, type Computed, type FoodBasis } from "@/lib/calc";
 import { Field, Modal, Notice, Tabs, toast } from "./ui";
+import RecipeImport from "./RecipeImport";
 
 export const CATEGORIES = ["Petit-déjeuner", "Déjeuner", "Dîner", "Collation"];
 type Food = FoodBasis & { id: string; food_key: string; name: string; brand: string | null; portion_label: string | null; favorite?: boolean; public: boolean; incomplete: boolean; source: string; kj: number | null };
@@ -74,7 +75,7 @@ export default function MealAdder({ date, defaultCategory, onClose, onAdded }: {
   const [q, setQ] = useState(""), [foods, setFoods] = useState<Food[]>([]), [recipes, setRecipes] = useState<any[]>([]);
   const [sel, setSel] = useState<{ kind: "food" | "recipe"; item: any } | null>(null), [qty, setQty] = useState("1"), [unit, setUnit] = useState("portion");
   const [tpls, setTpls] = useState<any[] | null>(null), [recents, setRecents] = useState<any[] | null>(null);
-  const [saveTpl, setSaveTpl] = useState(false), [tplName, setTplName] = useState("");
+  const [saveTpl, setSaveTpl] = useState(false), [tplName, setTplName] = useState(""), [imp, setImp] = useState(false);
   const [err, setErr] = useState<string | null>(null), [ext, setExt] = useState<{ products: any[]; unavailable?: boolean; message?: string } | null>(null), [busy, setBusy] = useState(false);
 
   useEffect(() => {
@@ -110,6 +111,7 @@ export default function MealAdder({ date, defaultCategory, onClose, onAdded }: {
   async function importExt(p: any) { try { const r = await api("/foods-import", { body: { product: p } }); const l = await api(`/foods?q=${encodeURIComponent(p.name)}`); const f = l.foods.find((x: Food) => x.food_key === r.food_key); if (f) pick("food", f); setExt(null); setTab("search"); } catch (e: any) { setErr(e.message); } }
 
   return (
+    <>
     <Modal title="Ajouter un repas" onClose={onClose}>
       {err && <Notice kind="err">{err}</Notice>}
       <div className="field"><label>Quel repas ?</label>
@@ -152,7 +154,7 @@ export default function MealAdder({ date, defaultCategory, onClose, onAdded }: {
               {recents === null ? <p className="muted">Chargement…</p> : recents.length === 0 ? <p className="small muted">Vos prochains repas apparaîtront ici pour être repris en un geste.</p> : recents.map((m, i) => <div className="item" key={i}><div className="grow"><b>{m.category}</b> <span className="small muted">{fmtShort(m.date)}{m.kcal != null ? ` · ${nf(m.kcal, 0)} kcal` : ""}</span><div className="small muted">{m.label}</div></div><button onClick={() => loadItems(m.items, m.category)}>Reprendre</button></div>)}
               <p className="small muted">Les aliments reprennent leurs valeurs actuelles ; les quantités d’origine restent modifiables avant d’enregistrer.</p>
             </div>
-          : tab === "recipes" ? (recipes.length ? recipes.map((r) => <div className="item" key={r.id}><div className="grow"><b>{r.title}</b><div className="small muted">{r.servings} portion(s){r.perServing?.kcal != null ? ` · ${nf(r.perServing.kcal, 0)} kcal/portion` : ""}</div></div><button onClick={() => pick("recipe", r)}>Choisir</button></div>) : <p className="empty">Aucune recette. Créez-en une depuis Alimentation → Recettes.</p>)
+          : tab === "recipes" ? (<><button style={{ marginBottom: 8 }} onClick={() => setImp(true)}>Importer une recette depuis une adresse web</button>{recipes.length ? recipes.map((r) => <div className="item" key={r.id}><div className="grow"><b>{r.title}</b><div className="small muted">{r.servings} portion(s){r.perServing?.kcal != null ? ` · ${nf(r.perServing.kcal, 0)} kcal/portion` : ""}</div></div><button onClick={() => pick("recipe", r)}>Choisir</button></div>) : <p className="empty">Aucune recette. Créez-en une depuis Alimentation → Recettes, ou importez-en une depuis une adresse web.</p>}</>)
             : foods.length ? foods.map((f) => <div className="item" key={f.id}><div className="grow"><b>{f.name}</b> {f.brand && <span className="muted small">{f.brand}</span>}<div className="small muted">{nf(f.kcal, 0)} kcal/{f.basis === "portion" ? "portion" : f.basis === "100ml" ? "100 ml" : "100 g"}{f.incomplete ? " · macros incomplètes" : ""}{f.public ? "" : " · privé"}</div></div><button onClick={() => pick("food", f)}>Choisir</button></div>)
               : <p className="empty">{tab === "fav" ? "Aucun favori. Cherchez un aliment et ajoutez-le aux favoris depuis Alimentation → Aliments." : tab === "recent" ? "Aucun aliment récent." : "Aucun résultat. Créez un aliment privé avec « Nouvel aliment »."}</p>}
       </> : <>
@@ -172,5 +174,7 @@ export default function MealAdder({ date, defaultCategory, onClose, onAdded }: {
         </div>
       </div>
     </Modal>
+      {imp && <RecipeImport onClose={() => setImp(false)} onSaved={() => { setImp(false); api("/recipes").then((r) => setRecipes(r.recipes)); }} />}
+    </>
   );
 }

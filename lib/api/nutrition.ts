@@ -4,7 +4,7 @@ import { computeFood, recipePortion, sumNutrients, dayState, validateFood, remai
 import { ApiError, type User } from "../auth";
 
 export type FoodRow = FoodBasis & { id: string; food_key: string; version: number; user_id: string | null; name: string; brand: string | null; kj: number | null; portion_label: string | null; source: string; license: string | null; archived: number };
-export type RecipeRow = { id: string; recipe_key: string; version: number; user_id: string; title: string; servings: number; final_weight: number | null; time_min: number | null; tags: string; steps: string | null; ingredients: string; favorite: number; archived: number };
+export type RecipeRow = { id: string; recipe_key: string; version: number; user_id: string; title: string; servings: number; final_weight: number | null; time_min: number | null; tags: string; steps: string | null; ingredients: string; favorite: number; archived: number; source_url: string | null };
 type Ing = { food_id: string; qty: number; unit: Unit };
 
 const toBasis = (f: FoodRow): FoodBasis => ({ ...f, kcal_kj_only: f.kj });
@@ -117,6 +117,7 @@ function snapshot(user: User, b: any) {
   return { kind, ref_id: r.id, label: r.title, qty, unit, c };
 }
 
+const sourceUrl = (v: unknown): string | null => { if (!v) return null; try { const u = new URL(String(v)); return /^https?:$/.test(u.protocol) && !u.username && !u.password ? u.toString().slice(0, 500) : null; } catch { return null; } };
 export const recipeInput = (user: User, b: any) => {
   const ings = (Array.isArray(b.ingredients) ? b.ingredients : []).map((i: any) => {
     const f = i.food_id ? foodById(user.id, String(i.food_id)) : latestFood(user.id, String(i.key ?? ""));
@@ -129,7 +130,7 @@ export const recipeInput = (user: User, b: any) => {
   return {
     title: str(b.title, "Titre", 120), servings: num(b.servings ?? 1, "Portions", { min: 0.5, max: 100 }), final_weight: numOrNull(b.final_weight, "Poids final", { min: 1 }),
     time_min: numOrNull(b.time_min, "Temps", { min: 0, max: 1440 }), tags: J((Array.isArray(b.tags) ? b.tags : []).slice(0, 12).map((t: unknown) => String(t).slice(0, 30))),
-    steps: str(b.steps, "Étapes", 5000, false) || null, ingredients: J(ings),
+    steps: str(b.steps, "Étapes", 5000, false) || null, ingredients: J(ings), source_url: sourceUrl(b.source_url),
   };
 };
 
@@ -368,7 +369,7 @@ export function mountNutrition(r: Router) {
     checkVersion(body, cur.version);
     const v = recipeInput(user, body);
     const id = uid();
-    run("INSERT INTO recipes(id,recipe_key,version,user_id,title,servings,final_weight,time_min,tags,steps,ingredients,favorite,created_at) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)", id, cur.recipe_key, cur.version + 1, user.id, v.title, v.servings, v.final_weight, v.time_min, v.tags, v.steps, v.ingredients, cur.favorite, nowIso());
+    run("INSERT INTO recipes(id,recipe_key,version,user_id,title,servings,final_weight,time_min,tags,steps,ingredients,favorite,created_at,source_url) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", id, cur.recipe_key, cur.version + 1, user.id, v.title, v.servings, v.final_weight, v.time_min, v.tags, v.steps, v.ingredients, cur.favorite, nowIso(), body.source_url === undefined ? cur.source_url : v.source_url);
     return { id, version: cur.version + 1 };
   });
   r.post("/recipes/:key/favorite", ({ user, params, body }) => {
@@ -408,6 +409,6 @@ export { ApiError, CalcError };
 export function createRecipe(user: User, body: any) {
   const v = recipeInput(user, body);
   const id = uid(), key = "r-" + uid();
-  run("INSERT INTO recipes(id,recipe_key,version,user_id,title,servings,final_weight,time_min,tags,steps,ingredients,created_at) VALUES(?,?,1,?,?,?,?,?,?,?,?,?)", id, key, user.id, v.title, v.servings, v.final_weight, v.time_min, v.tags, v.steps, v.ingredients, nowIso());
+  run("INSERT INTO recipes(id,recipe_key,version,user_id,title,servings,final_weight,time_min,tags,steps,ingredients,created_at,source_url) VALUES(?,?,1,?,?,?,?,?,?,?,?,?,?)", id, key, user.id, v.title, v.servings, v.final_weight, v.time_min, v.tags, v.steps, v.ingredients, nowIso(), v.source_url);
   return { id, recipe_key: key };
 }

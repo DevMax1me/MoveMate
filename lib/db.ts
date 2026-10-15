@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS foods(id TEXT PRIMARY KEY, food_key TEXT NOT NULL, ve
 CREATE INDEX IF NOT EXISTS foods_key ON foods(food_key, version);
 CREATE TABLE IF NOT EXISTS food_prefs(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, food_key TEXT NOT NULL, favorite INTEGER NOT NULL DEFAULT 0, last_used TEXT, PRIMARY KEY(user_id, food_key));
 CREATE TABLE IF NOT EXISTS recipes(id TEXT PRIMARY KEY, recipe_key TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
-  title TEXT NOT NULL, servings REAL NOT NULL, final_weight REAL, time_min INTEGER, tags TEXT NOT NULL DEFAULT '[]', steps TEXT, ingredients TEXT NOT NULL, favorite INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
+  title TEXT NOT NULL, servings REAL NOT NULL, final_weight REAL, time_min INTEGER, tags TEXT NOT NULL DEFAULT '[]', steps TEXT, ingredients TEXT NOT NULL, favorite INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, source_url TEXT);
 CREATE TABLE IF NOT EXISTS meals(id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, date TEXT NOT NULL, category TEXT NOT NULL,
   kind TEXT NOT NULL, ref_id TEXT NOT NULL, label TEXT NOT NULL, qty REAL NOT NULL, unit TEXT NOT NULL, note TEXT,
   kcal REAL, protein REAL, carbs REAL, fat REAL, fiber REAL, incomplete INTEGER NOT NULL DEFAULT 0, estimated INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL, recalculated_at TEXT);
@@ -76,6 +76,8 @@ CREATE TABLE IF NOT EXISTS reset_tokens(token TEXT PRIMARY KEY, user_id TEXT NOT
 function migrate(d: DatabaseSync) {
   const cols = (d.prepare("PRAGMA table_info(exercises)").all() as { name: string }[]).map((c) => c.name);
   if (!cols.includes("pattern")) d.exec("ALTER TABLE exercises ADD COLUMN pattern TEXT");
+  const rc = (d.prepare("PRAGMA table_info(recipes)").all() as { name: string }[]).map((c) => c.name);
+  if (!rc.includes("source_url")) d.exec("ALTER TABLE recipes ADD COLUMN source_url TEXT");
 }
 
 export function openDb(file = process.env.DATABASE_PATH || path.join(process.cwd(), "data", "terminator.db")): DatabaseSync {
