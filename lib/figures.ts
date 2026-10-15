@@ -207,6 +207,24 @@ export function specFor(ex: ExLike): Spec {
 
 // ---------------- Rendu SVG ----------------
 export type RenderOpts = { t: number; mode?: "figure" | "strip"; w?: number };
+
+// ---- Mannequin : membres épais et effilés (capsules), contour + remplissage ----
+const R = { thigh: [0.092, 0.066], shin: [0.062, 0.042], foot: [0.04, 0.034], torso: [0.1, 0.088], neck: [0.042, 0.038], uarm: [0.056, 0.046], farm: [0.046, 0.035], hand: 0.042, head: 0.1 } as const;
+const n3 = (x: number) => +x.toFixed(3);
+/** Capsule effilée entre deux articulations (rayons r0 en a, r1 en b), en un seul tracé. */
+function capsule(a: V, b: V, r0: number, r1: number): string {
+  const dx = b[0] - a[0], dy = b[1] - a[1], d = Math.hypot(dx, dy);
+  if (d <= Math.abs(r0 - r1) + 1e-4) { const [c, r] = r0 >= r1 ? [a, r0] : [b, r1]; return disc(c, r); }
+  const ux = dx / d, uy = dy / d, nx = -uy, ny = ux, sn = (r0 - r1) / d, cs = Math.sqrt(1 - sn * sn);
+  const mp: V = [nx * cs + ux * sn, ny * cs + uy * sn], mm: V = [-nx * cs + ux * sn, -ny * cs + uy * sn];
+  const q = (c: V, r: number, m: V) => `${n3(c[0] + r * m[0])} ${n3(c[1] + r * m[1])}`;
+  return `M${q(a, r0, mp)}L${q(b, r1, mp)}A${r1} ${r1} 0 ${sn < 0 ? 1 : 0} 0 ${q(b, r1, mm)}L${q(a, r0, mm)}A${r0} ${r0} 0 ${sn > 0 ? 1 : 0} 0 ${q(a, r0, mp)}Z`;
+}
+const disc = (c: V, r: number) => `M${n3(c[0] - r)} ${n3(c[1])}a${r} ${r} 0 1 0 ${n3(2 * r)} 0a${r} ${r} 0 1 0 ${n3(-2 * r)} 0Z`;
+const poly = (pts: V[]) => `M${pts.map((p) => `${n3(p[0])} ${n3(p[1])}`).join("L")}Z`;
+/** Une partie du corps : tous les contours d'abord, puis tous les remplissages (le contour intérieur disparaît, seule la silhouette reste). */
+const part = (shapes: string[], cls = "") => shapes.map((d) => `<path d="${d}" class="fg-o"/>`).join("") + shapes.map((d) => `<path d="${d}" class="fg-f ${cls}"/>`).join("");
+const legShapes = (H: V, K: V, A: V, toe: V) => [capsule(H, K, R.thigh[0], R.thigh[1]), capsule(K, A, R.shin[0], R.shin[1]), capsule(A, toe, R.foot[0], R.foot[1])];
 const f = (n: number) => +n.toFixed(3);
 const seg = (a: V, b: V, cls: string) => `<line x1="${f(a[0])}" y1="${f(a[1])}" x2="${f(b[0])}" y2="${f(b[1])}" class="${cls}"/>`;
 
@@ -238,14 +256,15 @@ function sideInner(s: Spec, t: number) {
     const px = A.A[0] + s.pulley[0] + (s.a.anchor === "hip" ? A.H[0] - A.A[0] : 0), py = (s.a.anchor === "hip" ? A.H[1] : A.A[1]) + s.pulley[1];
     out.push(`<line x1="${f(px)}" y1="${f(py)}" x2="${f(J.W[0])}" y2="${f(J.W[1])}" class="fg-cable"/><circle cx="${f(px)}" cy="${f(py)}" r="0.04" class="fg-furn-fill"/>`);
   }
-  // membres éloignés (plus clairs)
-  out.push(seg(J.H, J.K2, "fg-far"), seg(J.K2, J.A2, "fg-far"));
-  if (J.E2[0] !== J.E[0] || J.E2[1] !== J.E[1]) out.push(seg(J.S, J.E2, "fg-far"), seg(J.E2, J.W2, "fg-far"));
-  // tronc, jambe proche, bras proche
-  out.push(seg(J.H, J.S, hot.torso ? "fg-hot" : "fg-body"), seg(J.S, J.N, "fg-body"));
-  out.push(seg(J.H, J.K, hot.legs ? "fg-hot" : "fg-body"), seg(J.K, J.A, hot.legs ? "fg-hot" : "fg-body"), seg(J.A, J.toe, "fg-body"));
-  out.push(seg(J.S, J.E, hot.arms ? "fg-hot" : "fg-body"), seg(J.E, J.W, hot.arms ? "fg-hot" : "fg-body"));
-  out.push(`<circle cx="${f(J.HD[0])}" cy="${f(J.HD[1])}" r="${HEAD}" class="fg-head"/>`);
+  // mannequin : membres éloignés (plus clairs), tronc, jambe proche, tête, bras proche
+  const dToe: V = [J.toe[0] - J.A[0], J.toe[1] - J.A[1]], toe2: V = [J.A2[0] + dToe[0], J.A2[1] + dToe[1]];
+  out.push(part(legShapes(J.H, J.K2, J.A2, toe2), `far ${hot.legs ? "hot" : ""}`));
+  const twoArms = J.E2[0] !== J.E[0] || J.E2[1] !== J.E[1];
+  if (twoArms) out.push(part([capsule(J.S, J.E2, R.uarm[0], R.uarm[1]), capsule(J.E2, J.W2, R.farm[0], R.farm[1]), disc(J.W2, R.hand)], `far ${hot.arms ? "hot" : ""}`));
+  out.push(part([capsule(J.H, J.S, R.torso[0], R.torso[1]), capsule(J.S, J.N, R.neck[0], R.neck[1])], hot.torso ? "hot" : ""));
+  out.push(part(legShapes(J.H, J.K, J.A, J.toe), hot.legs ? "hot" : ""));
+  out.push(part([disc(J.HD, R.head)], "head"));
+  out.push(part([capsule(J.S, J.E, R.uarm[0], R.uarm[1]), capsule(J.E, J.W, R.farm[0], R.farm[1]), disc(J.W, R.hand)], hot.arms ? "hot" : ""));
   // accessoire tenu en main
   const [wx, wy] = J.W;
   if (s.impl === "bar") out.push(`<circle cx="${f(wx)}" cy="${f(wy)}" r="0.12" class="fg-plate"/><circle cx="${f(wx)}" cy="${f(wy)}" r="0.022" class="fg-dot"/>`);
@@ -282,13 +301,26 @@ function frontInner(s: Spec, t: number) {
   const tw = (p.twist ?? 0) * 0.16;
   out.push(`<line x1="-0.9" y1="0" x2="0.9" y2="0" class="fg-ground"/>`);
   const hot = s.hot;
-  out.push(seg(hl, kl, hot.legs ? "fg-hot" : "fg-body"), seg(kl, al, hot.legs ? "fg-hot" : "fg-body"), seg(hr, kr, hot.legs ? "fg-hot" : "fg-body"), seg(kr, ar, hot.legs ? "fg-hot" : "fg-body"));
-  out.push(seg(hl, hr, "fg-body"), seg(H, S, hot.torso ? "fg-hot" : "fg-body"), seg(SL, SR, hot.torso ? "fg-hot" : "fg-body"));
   const WL2: V = s.id === "twist" ? [S[0] + tw * 1.4, S[1] + 0.3] : WL, WR2: V = s.id === "twist" ? [S[0] + tw * 1.4, S[1] + 0.3] : WR;
   const EL2: V = s.id === "twist" ? [S[0] - 0.12 + tw, S[1] + 0.18] : EL, ER2: V = s.id === "twist" ? [S[0] + 0.12 + tw, S[1] + 0.18] : ER;
-  out.push(seg(SL, EL2, hot.arms ? "fg-hot" : "fg-body"), seg(EL2, WL2, hot.arms ? "fg-hot" : "fg-body"), seg(SR, ER2, hot.arms ? "fg-hot" : "fg-body"), seg(ER2, WR2, hot.arms ? "fg-hot" : "fg-body"));
+  const footL: V = [al[0] - 0.09, al[1]], footR: V = [ar[0] + 0.09, ar[1]];
+  const hc = hot.legs ? "hot" : "";
+  out.push(part([capsule(hl, kl, R.thigh[0] * 0.92, R.thigh[1]), capsule(kl, al, R.shin[0], R.shin[1]), capsule(al, footL, R.foot[0], R.foot[1])], hc));
+  out.push(part([capsule(hr, kr, R.thigh[0] * 0.92, R.thigh[1]), capsule(kr, ar, R.shin[0], R.shin[1]), capsule(ar, footR, R.foot[0], R.foot[1])], hc));
+  // tronc : un seul contour lisse (épaules arrondies, taille, bassin)
+  const hipW = 0.16, waist = 0.115, mid = (H[1] + S[1]) / 2 + 0.05, top = Math.min(SL[1], SR[1]) - 0.05;
+  const q = (x: number, y: number) => `${n3(x)} ${n3(y)}`;
+  const torso = `M${q(SL[0] - 0.045, SL[1] + 0.04)}Q${q(SL[0] - 0.05, top)} ${q(SL[0] + 0.05, top)}L${q(SR[0] - 0.05, top)}Q${q(SR[0] + 0.05, top)} ${q(SR[0] + 0.045, SR[1] + 0.04)}`
+    + `C${q(SR[0] + 0.0, SR[1] + 0.22)} ${q(H[0] + waist + 0.01, mid - 0.1)} ${q(H[0] + waist, mid)}C${q(H[0] + waist, mid + 0.07)} ${q(H[0] + hipW, H[1] - 0.02)} ${q(H[0] + hipW, H[1] + 0.05)}`
+    + `Q${q(H[0] + hipW, H[1] + 0.12)} ${q(H[0] + hipW - 0.05, H[1] + 0.12)}L${q(H[0] - hipW + 0.05, H[1] + 0.12)}Q${q(H[0] - hipW, H[1] + 0.12)} ${q(H[0] - hipW, H[1] + 0.05)}`
+    + `C${q(H[0] - hipW, H[1] - 0.02)} ${q(H[0] - waist, mid + 0.07)} ${q(H[0] - waist, mid)}C${q(H[0] - waist - 0.01, mid - 0.1)} ${q(SL[0] - 0.0, SL[1] + 0.22)} ${q(SL[0] - 0.045, SL[1] + 0.04)}Z`;
+  out.push(part([capsule(S, [S[0] + Math.sin(tilt) * 0.12, S[1] - Math.cos(tilt) * 0.12], R.neck[0], R.neck[1])], ""));
+  out.push(part([torso], hot.torso ? "hot" : ""));
+  const ac = hot.arms ? "hot" : "";
+  out.push(part([capsule(SL, EL2, R.uarm[0], R.uarm[1]), capsule(EL2, WL2, R.farm[0], R.farm[1]), disc(WL2, R.hand)], ac));
+  out.push(part([capsule(SR, ER2, R.uarm[0], R.uarm[1]), capsule(ER2, WR2, R.farm[0], R.farm[1]), disc(WR2, R.hand)], ac));
   const head: V = [S[0] + Math.sin(tilt) * 0.17, S[1] - Math.cos(tilt) * 0.17];
-  out.push(`<circle cx="${f(head[0])}" cy="${f(head[1])}" r="${HEAD}" class="fg-head"/>`);
+  out.push(part([disc(head, R.head)], "head"));
   if (s.impl === "db" || s.impl === "kb") out.push(`<circle cx="${f(WL2[0])}" cy="${f(WL2[1])}" r="0.055" class="fg-dot"/><circle cx="${f(WR2[0])}" cy="${f(WR2[1])}" r="0.055" class="fg-dot"/>`);
   const pts: V[] = [[-0.55, 0], [0.55, 0], [-0.55, -2.0], [0.55, -2.0], WL, WR, S, ar, al, head];
   const xs = pts.map((q) => q[0]), ys = pts.map((q) => q[1]);

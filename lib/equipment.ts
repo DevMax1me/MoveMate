@@ -18,3 +18,6 @@ export function missing(required: string[], profile: string[], gymAccess = false
 }
 /** Vrai si le jeton de matériel d'une fiche est connu (profil, alias ou élément domestique). Sert aux tests de cohérence du catalogue. */
 export const isKnownToken = (t: string) => (EQUIPMENT as readonly string[]).includes(norm(t)) || HOUSEHOLD.has(t);
+
+/** Matériel lisible : « kettlebell|haltères » (l'un ou l'autre) devient « kettlebell ou haltères ». */
+export const eqLabel = (eq: string[] | undefined) => (eq?.length ? eq.map((x) => x.split("|").join(" ou ")).join(", ") : "sans matériel");

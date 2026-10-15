@@ -2,11 +2,12 @@
 import { useState } from "react";
 import { api, useApi } from "@/lib/client";
 import { ErrorBox, Empty, Field, Modal, Notice, toast } from "@/components/ui";
-import { EQUIPMENT } from "@/lib/equipment";
+import { EQUIPMENT, eqLabel } from "@/lib/equipment";
 import { MUSCLE_GROUPS, groupById, groupsOf } from "@/lib/muscles";
 import { PATTERN_CHOICES } from "@/lib/figures";
 import BodyMap from "@/components/BodyMap";
 import MoveFigure, { FigureStrip } from "@/components/MoveFigure";
+import { explain } from "@/lib/explain";
 
 const PAGE = 36;
 
@@ -60,10 +61,11 @@ export default function Exercises() {
       <FigureStrip ex={e} />
       <h3>{e.name}</h3>{e.alias && <div className="muted small">{e.alias}</div>}
       <div className="small muted">{e.primary_muscles.join(", ")} · {e.level}</div>
+      <p className="small clamp2" style={{ margin: ".25rem 0 0" }}>{explain(e).summary}</p>
       <div className="row" style={{ marginTop: 6, gap: ".3rem" }}>
         {e.secondaryOnly && <span className="badge acc">muscle secondaire</span>}
         {e.place !== "gym" && <span className="badge">maison</span>}{e.place !== "home" && <span className="badge">salle</span>}
-        <span className="badge">{e.equipment.length ? e.equipment.join(", ") : "sans matériel"}</span>
+        <span className="badge">{eqLabel(e.equipment)}</span>
         {!e.compatible && <span className="badge warn">matériel manquant</span>}{e.private && <span className="badge acc">privé</span>}
       </div></button>)}</div>
     {data && data.exercises.length > shown && <div className="row" style={{ justifyContent: "center", marginTop: 18 }}><button onClick={() => setShown(shown + PAGE)}>Afficher plus ({data.exercises.length - shown} restants)</button></div>}
@@ -77,7 +79,7 @@ function Detail({ k, onClose, onPick }: { k: string; onClose: () => void; onPick
   const { data, reload } = useApi<any>(`/exercises/${k}`);
   const [report, setReport] = useState(false), [msg, setMsg] = useState("");
   if (!data) return <Modal title="Exercice" onClose={onClose}><p className="muted">Chargement…</p></Modal>;
-  const e = data.exercise;
+  const e = data.exercise, ex = explain(e);
   const prim = groupsOf(e.primary_muscles), sec = groupsOf(e.secondary_muscles).filter((g) => !prim.includes(g));
   return <Modal title={e.name} onClose={onClose}>
     <MoveFigure key={e.ex_key} ex={e} />
@@ -90,9 +92,11 @@ function Detail({ k, onClose, onPick }: { k: string; onClose: () => void; onPick
         <p className="small muted" style={{ margin: ".4rem 0 0" }}>{e.movement} · {e.level} · suivi : {{ reps_load: "répétitions et charge", time: "durée", distance: "durée et distance" }[e.metric as string]}</p>
       </div>
     </div>
-    <p style={{ marginTop: 10 }}><span className="badge">{e.equipment.length ? e.equipment.join(", ") : "sans matériel"}</span> {e.place !== "gym" && <span className="badge">maison</span>} {e.place !== "home" && <span className="badge">salle</span>}</p>
+    <p style={{ marginTop: 10 }}><span className="badge">{eqLabel(e.equipment)}</span> {e.place !== "gym" && <span className="badge">maison</span>} {e.place !== "home" && <span className="badge">salle</span>}</p>
     {!e.compatible && <Notice>Matériel manquant dans votre profil : {e.missing.join(", ")}.</Notice>}
 
+    <h3>En clair</h3><p style={{ margin: "0 0 .3rem" }}>{ex.summary}</p>{ex.how && <p className="small muted" style={{ margin: 0 }}>{ex.how}</p>}
+    {ex.terms.length > 0 && <><h3>Les mots du nom, expliqués</h3><dl className="terms">{ex.terms.map((t) => <div key={t.term}><dt>{t.term}</dt><dd>{t.def}</dd></div>)}</dl></>}
     <h3>Exécution</h3><p>{e.steps}</p><h3>Erreurs fréquentes</h3><p>{e.mistakes}</p>
 
     <VideoBlock exKey={e.ex_key} name={e.name} media={data.media} onChange={reload} />

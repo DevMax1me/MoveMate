@@ -270,6 +270,19 @@ d("recette bout en bout", () => {
     expect((await C.post("/exercises/n-existe-pas/media", { url: "https://youtu.be/dQw4w9WgXcQ" })).status).toBe(404);
   });
 
+  it("fiches abrégées pour la routine et la séance : une requête, fiches inconnues ignorées, exercices privés isolés", async () => {
+    const C = await signup("brief@test.fr"), D = await signup("brief2@test.fr");
+    const mine = await C.post("/exercises", { name: "Mon exo secret", primary_muscles: "dos", pattern: "pullH" });
+    const r = await C.get(`/exercise-brief?keys=tractions,goblet-squat,n-existe-pas,${mine.json.ex_key}`);
+    expect(r.status).toBe(200);
+    expect(Object.keys(r.json.brief).sort()).toEqual(["goblet-squat", mine.json.ex_key, "tractions"].sort());
+    expect(r.json.brief.tractions.primary_muscles.length).toBeGreaterThan(0); expect(r.json.brief.tractions.steps).toBeTruthy(); expect(r.json.brief["goblet-squat"].pattern).toBeTruthy();
+    expect(Object.keys((await D.get(`/exercise-brief?keys=${mine.json.ex_key},tractions`)).json.brief)).toEqual(["tractions"]); // l'exercice privé d'un autre compte reste invisible
+    expect(Object.keys((await C.get("/exercise-brief")).json.brief).length).toBe(0);
+    const many = Array.from({ length: 120 }, (_, i) => `x${i}`).join(",");
+    expect((await C.get(`/exercise-brief?keys=${many}`)).status).toBe(200);
+  });
+
   it("exercice privé : le type de mouvement choisit le schéma, valeur inconnue ignorée", async () => {
     const C = await signup("pattern@test.fr");
     const a = await C.post("/exercises", { name: "Mon tirage maison", primary_muscles: "dos", pattern: "pullH" });

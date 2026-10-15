@@ -79,6 +79,13 @@ export function mountTraining(r: Router) {
     list.sort((x, y) => (+y.prim - +x.prim) || (score(y.e) - score(x.e)) || (soft(x.e) - soft(y.e)) || (+y.e.compatible - +x.e.compatible) || (focus(x.e) - focus(y.e)) || (spread(x.e) - spread(y.e)) || x.e.name.localeCompare(y.e.name, "fr"));
     return { exercises: list.map(({ e, prim }) => ({ ...e, secondaryOnly: !!group && !prim })), facets, total: base.length };
   });
+  // Fiches abrégées pour reconnaître des exercices déjà choisis (routine, séance) : une seule requête pour toute la liste.
+  r.get("/exercise-brief", ({ user, query }) => {
+    const keys = [...new Set((query.get("keys") ?? "").split(",").map((k) => k.trim()).filter(Boolean))].slice(0, 80);
+    const brief: Record<string, unknown> = {};
+    for (const k of keys) { const e = latestEx(user.id, k); if (e) brief[k] = exOut(e, user); }
+    return { brief };
+  });
   r.get("/exercises/:key", ({ user, params }) => {
     const e = latestEx(user.id, params[0]);
     if (!e) throw notFound();

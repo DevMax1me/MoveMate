@@ -4,6 +4,7 @@ import { api, useApi, fmtDate, fmtShort, nf, shiftDate, uuid, ApiFail } from "@/
 import { useMe } from "@/components/Shell";
 import { ErrorBox, Empty, Field, Loading, Modal, Notice, Tabs, toast } from "@/components/ui";
 import { parseNum } from "@/lib/calc";
+import { ExercisePicker, ExerciseRecap, useBrief } from "@/components/ExerciseParts";
 
 export default function Training() {
   const [tab, setTab] = useState<"session" | "routines" | "planning" | "history">("session");
@@ -47,6 +48,7 @@ function Active({ w, reload }: { w: any; reload: () => void }) {
   const left = Math.max(0, Math.ceil((rest - now) / 1000));
   const fromSets = w.sets.filter((s: any) => !w.snapshot.items.some((i: any) => i.slug === s.ex_key)).map((s: any) => ({ slug: s.ex_key, name: s.exercise_name, metric: s.metric, sets: 0, rest: 60 }));
   const items = [...w.snapshot.items, ...[...fromSets, ...extra].filter((e, i, a) => !w.snapshot.items.some((x: any) => x.slug === e.slug) && a.findIndex((y) => y.slug === e.slug) === i)];
+  const brief = useBrief(items.map((i: any) => i.slug));
   const equipCtx = useRef<Record<string, string>>({});
   const conv = useRef<Record<string, string>>({});
 
@@ -95,6 +97,7 @@ function Active({ w, reload }: { w: any; reload: () => void }) {
       const timeBased = it.metric === "time", dist = it.metric === "distance";
       return <div className="card" key={it.slug}>
         <h3 style={{ margin: 0 }}>{it.name}</h3>
+        <ExerciseRecap ex={brief[it.slug]} />
         <p className="small muted">{it.sets ? `Prévu : ${it.sets} série(s)${it.reps ? ` · ${it.reps} rép.` : ""}${it.load != null ? ` · ${it.load} kg` : ""} · repos ${it.rest ?? 0} s` : "Exercice libre"}</p>
         {prev && <p className="small">Dernière fois ({fmtShort(prev.date)}{prev.equipment_ctx ? `, ${prev.equipment_ctx}` : ""}{prev.load_conv ? `, charge ${prev.load_conv.replace("_", " ")}` : ""}) : {prev.sets.map((s: any) => `${s.reps ?? ""}${s.load != null ? `×${s.load} kg` : ""}${s.secs ? `${s.secs}s` : ""}${s.distance ? `${s.distance}km` : ""}`).join(" · ")}</p>}
         {!timeBased && !dist && <div className="inline small" style={{ marginBottom: 6 }}>
@@ -136,15 +139,6 @@ function Summary({ s, onClose }: { s: any; onClose: () => void }) {
     <button className="primary" onClick={onClose}>Fermer</button></div>;
 }
 
-function ExercisePicker({ onPick, onClose }: { onPick: (e: any) => void; onClose: () => void }) {
-  const [q, setQ] = useState("");
-  const { data } = useApi<any>(`/exercises?q=${encodeURIComponent(q)}`);
-  return <Modal title="Choisir un exercice" onClose={onClose}>
-    <input type="search" autoFocus placeholder="Rechercher…" aria-label="Rechercher un exercice" value={q} onChange={(e) => setQ(e.target.value)} />
-    {data?.exercises.map((e: any) => <div className="item" key={e.id}><div className="grow"><b>{e.name}</b><div className="small muted">{e.movement} · {e.equipment.join(", ") || "sans matériel"}</div></div>{!e.compatible && <span className="badge warn">matériel manquant</span>}<button onClick={() => onPick(e)}>Choisir</button></div>)}
-  </Modal>;
-}
-
 // ---------------- Routines ----------------
 function Routines() {
   const { data, error, reload } = useApi<any>("/routines");
@@ -170,6 +164,7 @@ function RoutineEditor({ routine, onDone }: { routine: any | null; onDone: () =>
   const [name, setName] = useState(routine?.name ?? ""), [place, setPlace] = useState(routine?.place ?? "home");
   const [items, setItems] = useState<any[]>(routine?.items ?? []), [picker, setPicker] = useState(false), [err, setErr] = useState<string | null>(null);
   const [alt, setAlt] = useState<Record<string, any>>({});
+  const brief = useBrief(items.map((i: any) => i.slug));
   const upd = (i: number, p: any) => setItems(items.map((x, k) => (k === i ? { ...x, ...p } : x)));
   const move = (i: number, d: number) => { const j = i + d; if (j < 0 || j >= items.length) return; const n = [...items]; [n[i], n[j]] = [n[j], n[i]]; setItems(n); };
   async function showAlt(slug: string) { const r = await api(`/exercises/${slug}`); setAlt({ ...alt, [slug]: r.alternative }); }
@@ -186,6 +181,7 @@ function RoutineEditor({ routine, onDone }: { routine: any | null; onDone: () =>
     <div className="inline"><Field label="Nom"><input value={name} onChange={(e) => setName(e.target.value)} /></Field><Field label="Lieu"><select value={place} onChange={(e) => setPlace(e.target.value)}><option value="home">Maison</option><option value="gym">Salle</option></select></Field></div>
     {items.map((it, i) => <div className="card" key={i + it.slug}>
       <div className="row spread"><b>{it.name ?? it.slug}</b><div className="row"><button aria-label="Monter" onClick={() => move(i, -1)}>↑</button><button aria-label="Descendre" onClick={() => move(i, 1)}>↓</button><button className="danger" aria-label="Retirer" onClick={() => setItems(items.filter((_, k) => k !== i))}>✕</button></div></div>
+      <ExerciseRecap ex={brief[it.slug]} />
       {it.compatible === false && <Notice>Matériel manquant ({(it.missing ?? []).join(", ")}). <button onClick={() => showAlt(it.slug)}>Voir l’alternative</button>{alt[it.slug] && <> Alternative : <b>{alt[it.slug].name}</b> <button onClick={() => { upd(i, { slug: alt[it.slug].ex_key, name: alt[it.slug].name, compatible: alt[it.slug].compatible }); }}>Remplacer</button><span className="small muted"> (nouvelle entrée : performances séparées)</span></>}</Notice>}
       <div className="grid g3"><Field label="Séries"><input inputMode="numeric" value={it.sets ?? ""} onChange={(e) => upd(i, { sets: e.target.value })} /></Field><Field label="Échauff."><input inputMode="numeric" value={it.warmup_sets ?? 0} onChange={(e) => upd(i, { warmup_sets: e.target.value })} /></Field><Field label="Répétitions" hint="ex. 8-12"><input value={it.reps ?? ""} onChange={(e) => upd(i, { reps: e.target.value })} /></Field>
         <Field label="Charge prévue (kg)"><input inputMode="decimal" value={it.load ?? ""} onChange={(e) => upd(i, { load: e.target.value })} /></Field><Field label="Repos (s)"><input inputMode="numeric" value={it.rest ?? 60} onChange={(e) => upd(i, { rest: e.target.value })} /></Field><Field label="Notes"><input value={it.notes ?? ""} onChange={(e) => upd(i, { notes: e.target.value })} /></Field></div>

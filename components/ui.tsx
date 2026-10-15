@@ -1,9 +1,18 @@
 "use client";
 import Mascot from "./Mascot";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
+const openModals: object[] = [];
 export function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: ReactNode }) {
-  useEffect(() => { const k = (e: KeyboardEvent) => e.key === "Escape" && onClose(); window.addEventListener("keydown", k); return () => window.removeEventListener("keydown", k); }, [onClose]);
+  // fenêtres empilées (choisir un exercice dans une routine) : Échap ne ferme que la fenêtre du dessus
+  const id = useRef({}).current, close = useRef(onClose);
+  close.current = onClose;
+  useEffect(() => {
+    openModals.push(id);
+    const k = (e: KeyboardEvent) => e.key === "Escape" && openModals[openModals.length - 1] === id && close.current();
+    window.addEventListener("keydown", k);
+    return () => { window.removeEventListener("keydown", k); const i = openModals.indexOf(id); if (i >= 0) openModals.splice(i, 1); };
+  }, [id]);
   return (
     <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
