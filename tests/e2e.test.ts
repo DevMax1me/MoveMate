@@ -228,6 +228,57 @@ d("recette bout en bout", () => {
     expect((await find("xyzintrouvable")).length).toBe(0);
   });
 
+  it("filtre par muscle : décomptes, muscle principal avant secondaire, recherche combinée", async () => {
+    const C = await signup("muscle@test.fr");
+    const all = (await C.get("/exercises")).json;
+    expect(all.total).toBe(all.exercises.length);
+    for (const g of ["pectoraux", "dos", "epaules", "biceps", "triceps", "quadriceps", "ischio", "fessiers", "mollets", "abdominaux"]) expect(all.facets[g], g).toBeGreaterThanOrEqual(8);
+    const pec = (await C.get("/exercises?muscle=pectoraux")).json;
+    expect(pec.exercises.length).toBeGreaterThanOrEqual(all.facets.pectoraux); // principaux + secondaires
+    const firstSecondary = pec.exercises.findIndex((e: any) => e.secondaryOnly);
+    if (firstSecondary >= 0) expect(pec.exercises.slice(firstSecondary).every((e: any) => e.secondaryOnly)).toBe(true); // les exercices dont c'est le muscle principal passent d'abord
+    expect(pec.exercises.slice(0, 10).every((e: any) => !e.secondaryOnly)).toBe(true);
+    expect((await C.get("/exercises?muscle=%C3%A9paules")).json.exercises.length).toBeGreaterThan(0); // ancien libellé accepté
+    const combo = (await C.get("/exercises?muscle=dos&q=poulie")).json.exercises as any[];
+    expect(combo.length).toBeGreaterThan(3); expect(combo.every((e) => /poulie/i.test(e.name + e.equipment.join(" ")) || /tirage|row/i.test(e.name))).toBe(true);
+    expect((await C.get("/exercises?muscle=inconnu")).json.exercises.length).toBe(all.exercises.length); // muscle inconnu ignoré, pas d'erreur
+    expect((await C.get("/exercises?muscle=dos&q=poulie")).json.facets.dos).toBeGreaterThan(0); // les décomptes tiennent compte des autres filtres
+  });
+
+  it("fiche : exercices ressemblants et schéma ; lien vidéo personnel validé, privé, exporté", async () => {
+    const C = await signup("video@test.fr"), D = await signup("video2@test.fr");
+    const f = (await C.get("/exercises/tractions")).json;
+    expect(f.exercise.pattern).toBeTruthy();
+    expect(f.similar.length).toBeGreaterThanOrEqual(3); expect(f.similar.every((s: any) => s.ex_key !== "tractions" && s.movement === f.exercise.movement)).toBe(true);
+    expect(f.media.public).toBeNull(); expect(f.media.mine).toBeNull(); expect(f.media.search).toMatch(/^https:\/\/www\.youtube\.com\/results\?search_query=/);
+    // adresses refusées : pas de https, javascript:, identifiants dans l'adresse, texte libre
+    for (const bad of ["http://youtube.com/watch?v=abcdefghijk", "javascript:alert(1)", "https://user:pw@youtube.com/watch?v=abcdefghijk", "pas une adresse", "ftp://exemple.fr/v.mp4", ""]) expect((await C.post("/exercises/tractions/media", { url: bad })).status, bad).toBe(400);
+    const yt = await C.post("/exercises/tractions/media", { url: "https://youtu.be/dQw4w9WgXcQ", title: "Ma référence" });
+    expect(yt.status).toBe(200);
+    let m = (await C.get("/exercises/tractions")).json.media.mine;
+    expect(m.embed).toEqual({ kind: "youtube", src: "https://www.youtube-nocookie.com/embed/dQw4w9WgXcQ" }); expect(m.title).toBe("Ma référence");
+    await C.post("/exercises/tractions/media", { url: "https://exemple.fr/videos/traction.mp4" });
+    m = (await C.get("/exercises/tractions")).json.media.mine; expect(m.embed.kind).toBe("file"); // remplace le précédent
+    await C.post("/exercises/tractions/media", { url: "https://exemple.fr/page-quelconque" });
+    expect((await C.get("/exercises/tractions")).json.media.mine.embed.kind).toBe("link"); // hôte inconnu : simple lien, jamais intégré
+    expect((await D.get("/exercises/tractions")).json.media.mine).toBeNull(); // privé
+    const exp = await C.post("/exports", { format: "json" });
+    const data = JSON.parse((await C.get(exp.json.url.replace("/api", ""))).text);
+    expect(data.exercise_media.length).toBe(1);
+    expect((await C.del("/exercises/tractions/media")).status).toBe(200);
+    expect((await C.get("/exercises/tractions")).json.media.mine).toBeNull();
+    expect((await C.post("/exercises/n-existe-pas/media", { url: "https://youtu.be/dQw4w9WgXcQ" })).status).toBe(404);
+  });
+
+  it("exercice privé : le type de mouvement choisit le schéma, valeur inconnue ignorée", async () => {
+    const C = await signup("pattern@test.fr");
+    const a = await C.post("/exercises", { name: "Mon tirage maison", primary_muscles: "dos", pattern: "pullH" });
+    const b = await C.post("/exercises", { name: "Mon exo bizarre", primary_muscles: "dos", pattern: "<script>" });
+    expect(a.status).toBe(200); expect(b.status).toBe(200);
+    expect((await C.get(`/exercises/${a.json.ex_key}`)).json.exercise.pattern).toBe("pullH");
+    expect((await C.get(`/exercises/${b.json.ex_key}`)).json.exercise.pattern ?? null).toBeNull();
+  });
+
   it("notes : import prévisualisé, versions, historique, objectifs à revoir", async () => {
     const C = await signup("n@test.fr");
     const p = await C.post("/notes-import/preview", { text: "# Objectif\nCible 1800 kcal le 2025-03-04\n---\n# Poids\nJ'étais à 82 kg" });

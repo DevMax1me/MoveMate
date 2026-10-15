@@ -7,7 +7,7 @@ export function Modal({ title, onClose, children }: { title: string; onClose: ()
   return (
     <div className="modal-bg" onMouseDown={(e) => e.target === e.currentTarget && onClose()}>
       <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
-        <div className="row spread"><h2 style={{ margin: 0 }}>{title}</h2><button className="ghost" onClick={onClose} aria-label="Fermer">✕</button></div>
+        <div className="row spread" style={{ flexWrap: "nowrap", alignItems: "flex-start" }}><h2 style={{ margin: 0, minWidth: 0, overflowWrap: "anywhere" }}>{title}</h2><button className="ghost" onClick={onClose} aria-label="Fermer" style={{ flex: "none" }}>✕</button></div>
         <div style={{ marginTop: 10 }}>{children}</div>
       </div>
     </div>

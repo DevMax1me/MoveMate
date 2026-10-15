@@ -1,7 +1,7 @@
 # Terminator — plateforme de suivi alimentaire et sportif
 
 Application web multi-comptes (V1 du *cahier des charges v1.1 du 14 octobre 2026*) : journal alimentaire et calories,
-recettes, poids et tendance, catalogue de 40 exercices, routines, séances en direct, activités, carnet de connaissances
+recettes, poids et tendance, catalogue de plus de 700 exercices avec schémas, routines, séances en direct, activités, carnet de connaissances
 et agent personnalisé. Interface en français, pensée pour le téléphone (360 → 1 440 px), mode clair/sombre automatique.
 
 ## Démarrage
@@ -29,6 +29,15 @@ Variables (voir `.env.example`) : `DATABASE_PATH`, `ANTHROPIC_API_KEY` (optionne
 
 Identité chaleureuse et vivante : fond crème, encre aubergine, police Bricolage Grotesque (auto-hébergée via `@fontsource`, aucune requête vers un service tiers), formes organiques légèrement asymétriques, et **une couleur par rubrique** (jaune soleil = Aujourd'hui, tomate = Alimentation, violet = Entraînement, vert = Progression, bleu = Carnet, rose = Agent) qui teinte l'accent, les boutons et l'onglet actif. Barre de navigation flottante sur mobile, mascotte « Termi » (`components/Mascot.tsx`) dans les états vides et les moments clés, thème automatique/clair/sombre.
 Les graphiques (`components/charts.tsx`) suivent la méthode dataviz : une seule échelle, bulle de survol et lecture au clavier, légende dès 2 séries, jours incomplets en teinte claire, tableau équivalent sous chaque graphique. Couleurs de données (énergie `--s1`, entraînement `--s2`, poids/forme `--s3`) validées avec le script de contraste/daltonisme, en clair (`#d63d1f #6247e0 #0f8a74` sur `#fff7ec`, toutes paires) et en sombre (`#e5573a #8570ec #17967f` sur `#1d1630`).
+
+## Exercices : retrouver celui qu'on cherche
+
+Le catalogue compte plus de 700 fiches ; l'écran « Exercices » aide à reconnaître le bon mouvement :
+
+1. **Muscle d'abord** : carte du corps (face et dos) cliquable et pastilles avec le nombre d'exercices disponibles, calculé avec les autres filtres (`facets` de `GET /exercises`). Les exercices dont le muscle choisi est le muscle *principal* passent avant ceux où il n'est que secondaire (badge « muscle secondaire ») ; la musculation passe avant la mobilité, et les exercices faisables avec le matériel du profil avant les autres (`lib/muscles.ts`, `components/BodyMap.tsx`).
+2. **Schéma du mouvement** : chaque fiche porte une vignette « départ → fin » ; la fiche détaillée l'anime (pause, boutons Départ / Fin, animation désactivée si l'appareil demande de réduire les mouvements). Les schémas sont **originaux**, dessinés par un petit moteur de poses (`lib/figures.ts` : cinématique + jambes/bras à deux segments, vues de profil et de face, une soixantaine d’archétypes) choisis d'après le type de mouvement (`pattern`) et le nom. Ce sont des figures simplifiées : elles donnent l'idée du mouvement, pas la technique complète. Pour un exercice privé, l'utilisateur choisit le type de mouvement qui y ressemble le plus.
+3. **Vidéo** : aucune vidéo tierce n'est livrée. La fiche propose une recherche YouTube et chacun peut **coller son propre lien** (YouTube, Vimeo, fichier `.mp4`/`.webm` en https), privé, exporté et supprimé avec le compte. Le lecteur n'est chargé **qu'après un clic** (YouTube via `youtube-nocookie.com`, Vimeo, ou balise `<video>`) : tant que rien n'est lancé, aucun site tiers n'est contacté. Un hôte inconnu reste un simple lien. Un média public ne peut être publié par l'administration qu'avec auteur, source et licence.
+4. **Exercices qui ressemblent** : même zone du corps, même famille de mouvement, matériel compatible d'abord.
 
 ## Architecture (variante « application intégrée » du §19)
 
@@ -72,7 +81,7 @@ Les graphiques (`components/charts.tsx`) suivent la méthode dataviz : une seule
 
 1. **Vérification de l'adresse e-mail et envoi de courriels** : non branchés (pas de SMTP). Le lien de réinitialisation est journalisé côté serveur uniquement (jamais renvoyé au client).
 2. **Volet juridique (§21)** : base légale art. 6/9, AIPD, HDS, registre, sous-traitants et hébergement sont à valider par un interlocuteur qualifié. La page `/confidentialite` est une version de travail.
-3. **Contenus** : valeurs nutritionnelles du catalogue générique *indicatives* (marquées « à valider ») et fiches d'exercices à faire **relire par une personne compétente** ; aucun média n'est livré (droits non établis). Licence ODbL/DbCL à valider pour tout catalogue dérivé d'Open Food Facts.
+3. **Contenus** : valeurs nutritionnelles du catalogue générique *indicatives* (marquées « à valider ») et fiches d'exercices à faire **relire par une personne compétente** ; aucun média n'est livré (droits non établis) et les schémas de mouvement sont des figures simplifiées à faire valider par un coach. Licence ODbL/DbCL à valider pour tout catalogue dérivé d'Open Food Facts.
 4. **Fournisseur IA** : sans `ANTHROPIC_API_KEY` l'agent fonctionne en règles. Choix du fournisseur, conditions contractuelles, plafond de coût global et la grille d'évaluation à deux évaluateurs (≥ 90 % de pertinence) restent à conduire ; `npm test` couvre les contraintes strictes.
 5. **Maquettes** (§3) et **spécification OpenAPI** : non produites ; l'interface a été construite directement.
 6. **Base** : SQLite convient au pilote (20 utilisateurs). Sauvegardes chiffrées, rétention 30 j, test de restauration, supervision, 99,5 % de disponibilité et déploiement conteneurisé sont à mettre en place côté exploitation (rejouer `account_deleted` de la table `audit` après toute restauration).
@@ -84,7 +93,7 @@ Les graphiques (`components/charts.tsx`) suivent la méthode dataviz : une seule
 
 ```
 app/            pages (public, (app)/ écrans connectés) et API
-components/     Shell, graphiques, saisie de repas, formulaires
+components/     Shell, graphiques, saisie de repas, carte des muscles, schémas de mouvement, formulaires
 lib/            calc, agent, equipment, db, seed, auth, http, provider, api/*
 tests/          unitaires, évaluation agent, e2e
 scripts/        e2e.sh, seed-demo.mjs

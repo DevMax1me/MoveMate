@@ -38,8 +38,9 @@ CREATE INDEX IF NOT EXISTS weights_day ON weights(user_id, date);
 CREATE TABLE IF NOT EXISTS measurements(id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, date TEXT NOT NULL, name TEXT NOT NULL, cm REAL NOT NULL);
 CREATE TABLE IF NOT EXISTS exercises(id TEXT PRIMARY KEY, ex_key TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL, alias TEXT, movement TEXT NOT NULL, primary_muscles TEXT NOT NULL, secondary_muscles TEXT NOT NULL DEFAULT '[]', place TEXT NOT NULL,
-  equipment TEXT NOT NULL DEFAULT '[]', level TEXT NOT NULL, metric TEXT NOT NULL, steps TEXT, mistakes TEXT, easier TEXT, alternative TEXT,
+  equipment TEXT NOT NULL DEFAULT '[]', level TEXT NOT NULL, metric TEXT NOT NULL, steps TEXT, mistakes TEXT, easier TEXT, alternative TEXT, pattern TEXT,
   media_url TEXT, media_author TEXT, media_source TEXT, media_license TEXT, status TEXT NOT NULL DEFAULT 'published', reviewed_at TEXT, archived INTEGER NOT NULL DEFAULT 0);
+CREATE TABLE IF NOT EXISTS exercise_user_media(user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, ex_key TEXT NOT NULL, url TEXT NOT NULL, title TEXT, created_at TEXT NOT NULL, PRIMARY KEY(user_id, ex_key));
 CREATE TABLE IF NOT EXISTS routines(id TEXT PRIMARY KEY, routine_key TEXT NOT NULL, version INTEGER NOT NULL DEFAULT 1, user_id TEXT REFERENCES users(id) ON DELETE CASCADE,
   name TEXT NOT NULL, place TEXT NOT NULL, items TEXT NOT NULL, demo INTEGER NOT NULL DEFAULT 0, archived INTEGER NOT NULL DEFAULT 0, created_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS planned(id TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, routine_key TEXT NOT NULL, date TEXT NOT NULL,
@@ -71,11 +72,18 @@ CREATE TABLE IF NOT EXISTS exports(token TEXT PRIMARY KEY, user_id TEXT NOT NULL
 CREATE TABLE IF NOT EXISTS reset_tokens(token TEXT PRIMARY KEY, user_id TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE, expires INTEGER NOT NULL);
 `;
 
+/** Migrations légères pour les bases créées avant l'ajout d'une colonne. */
+function migrate(d: DatabaseSync) {
+  const cols = (d.prepare("PRAGMA table_info(exercises)").all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes("pattern")) d.exec("ALTER TABLE exercises ADD COLUMN pattern TEXT");
+}
+
 export function openDb(file = process.env.DATABASE_PATH || path.join(process.cwd(), "data", "terminator.db")): DatabaseSync {
   if (file !== ":memory:") fs.mkdirSync(path.dirname(file), { recursive: true });
   const db = new DatabaseSync(file);
   db.exec("PRAGMA journal_mode=WAL; PRAGMA foreign_keys=ON;");
   db.exec(SCHEMA);
+  migrate(db);
   seedCatalog(db);
   return db;
 }

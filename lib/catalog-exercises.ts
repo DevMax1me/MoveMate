@@ -777,7 +777,7 @@ const SECTIONS: [string, string][] = [["push", PUSH], ["pull", PULL], ["legs", L
 export const slugify = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/['’]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 const list = (s: string) => (s ? s.split(",").map((x) => x.trim()).filter(Boolean) : []);
 
-export type CatalogRow = { slug: string; name: string; alias: string | null; movement: string; primary: string[]; secondary: string[]; place: "home" | "gym" | "both"; equipment: string[]; level: string; metric: "reps_load" | "time" | "distance"; steps: string; mistakes: string; easier: string | null; alternative: string | null };
+export type CatalogRow = { slug: string; name: string; alias: string | null; pattern: string; movement: string; primary: string[]; secondary: string[]; place: "home" | "gym" | "both"; equipment: string[]; level: string; metric: "reps_load" | "time" | "distance"; steps: string; mistakes: string; easier: string | null; alternative: string | null };
 
 export function buildCatalog(): CatalogRow[] {
   const rows: CatalogRow[] = [];
@@ -793,7 +793,7 @@ export function buildCatalog(): CatalogRow[] {
       seen.add(slug);
       const movement = pat === "plyo" ? (group === "push" && /pompes/i.test(name) ? "poussée" : "jambes") : PATMOVE[pat] ?? GROUP[group];
       rows.push({
-        slug, name, alias: alias?.trim() || null, movement, primary: list(prim), secondary: list(sec), place: place === "h" ? "home" : place === "g" ? "gym" : "both",
+        slug, name, alias: alias?.trim() || null, pattern: pat, movement, primary: list(prim), secondary: list(sec), place: place === "h" ? "home" : place === "g" ? "gym" : "both",
         equipment: list(equip).map((e) => e.replace(/\//g, "|")), level: LEVEL[lvl], metric: METRIC[met],
         steps: p.steps + (note ? ` ${note}` : ""), mistakes: p.mistakes, easier: p.easier === slug ? null : p.easier, alternative: p.alt === slug ? null : p.alt,
       });

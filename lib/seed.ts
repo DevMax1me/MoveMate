@@ -102,17 +102,27 @@ const EXOS: E[] = [
   ["mobilite-epaules", "Mobilité des épaules", null, "mobilité", "épaules", "", "home", "bâton|élastique", "débutant", "reps_load", "Passer le bâton de l'avant vers l'arrière bras tendus.", "Forcer l'amplitude.", null, null],
 ];
 
+// Modèle de mouvement des 40 fiches de base (sert au schéma animé et aux exercices similaires).
+export const BASE_PATTERNS: Record<string, string> = { pompes: "pushUp", "pompes-inclinees": "pushUp", "pompes-genoux": "pushUp", "developpe-couche-barre": "pushH", "developpe-couche-halteres": "pushH", "developpe-incline-halteres": "pushH", "developpe-epaules-halteres": "pushV", "elevations-laterales": "lateral",
+  "tractions-assistees": "pullV", tractions: "pullV", "tirage-vertical": "pullV", "rowing-poulie": "pullH", "rowing-haltere": "pullH", "rowing-barre": "pullH", "rowing-elastique": "pullH", "face-pull": "rear", "squat-poids-corps": "squat", "goblet-squat": "squat", "squat-barre": "squat", "presse-cuisses": "squat",
+  "fentes-arriere": "lunge", "squat-bulgare": "lunge", "step-up": "lunge", "souleve-terre-roumain": "hinge", "pont-fessier": "glute", "mollets-debout": "calf", planche: "plank", "planche-laterale": "plank", "dead-bug": "crunch", "bird-dog": "lowback", crunch: "crunch", "pallof-press": "rot",
+  marche: "cardioSteady", course: "cardioSteady", velo: "cardioSteady", rameur: "cardioSteady", "corde-a-sauter": "cardioHiit", "mobilite-cheville": "mob", "rotation-thoracique": "mob", "mobilite-epaules": "mob" };
+
 const csv = (s: string) => JSON.stringify(s ? s.split(",") : []);
 
 export function seedCatalog(db: DatabaseSync) {
   // Fiches de base (texte rédigé à la main) + catalogue étendu. On n'insère que ce qui manque : les bases existantes sont complétées sans doublon.
   const have = new Set((db.prepare("SELECT ex_key FROM exercises WHERE user_id IS NULL").all() as { ex_key: string }[]).map((r) => r.ex_key));
-  const ins = db.prepare(`INSERT INTO exercises(id,ex_key,version,user_id,name,alias,movement,primary_muscles,secondary_muscles,place,equipment,level,metric,steps,mistakes,easier,alternative,status,reviewed_at)
-    VALUES(?,?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,'published',NULL)`);
+  const ins = db.prepare(`INSERT INTO exercises(id,ex_key,version,user_id,name,alias,movement,primary_muscles,secondary_muscles,place,equipment,level,metric,steps,mistakes,easier,alternative,pattern,status,reviewed_at)
+    VALUES(?,?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'published',NULL)`);
   db.exec("BEGIN");
   try {
-    for (const e of EXOS) if (!have.has(e[0])) { ins.run(id(), e[0], 1, e[1], e[2], e[3], csv(e[4]), csv(e[5]), e[6], csv(e[7]), e[8], e[9], e[10], e[11], e[12], e[13]); have.add(e[0]); }
-    for (const e of buildCatalog()) if (!have.has(e.slug)) { ins.run(id(), e.slug, 1, e.name, e.alias, e.movement, JSON.stringify(e.primary), JSON.stringify(e.secondary), e.place, JSON.stringify(e.equipment), e.level, e.metric, e.steps, e.mistakes, e.easier, e.alternative); have.add(e.slug); }
+    for (const e of EXOS) if (!have.has(e[0])) { ins.run(id(), e[0], 1, e[1], e[2], e[3], csv(e[4]), csv(e[5]), e[6], csv(e[7]), e[8], e[9], e[10], e[11], e[12], e[13], BASE_PATTERNS[e[0]] ?? null); have.add(e[0]); }
+    for (const e of buildCatalog()) if (!have.has(e.slug)) { ins.run(id(), e.slug, 1, e.name, e.alias, e.movement, JSON.stringify(e.primary), JSON.stringify(e.secondary), e.place, JSON.stringify(e.equipment), e.level, e.metric, e.steps, e.mistakes, e.easier, e.alternative, e.pattern); have.add(e.slug); }
+    // bases existantes : renseigner le modèle de mouvement des fiches publiques qui n'en ont pas encore
+    const upd = db.prepare("UPDATE exercises SET pattern=? WHERE ex_key=? AND user_id IS NULL AND pattern IS NULL");
+    for (const [k, pat] of Object.entries(BASE_PATTERNS)) upd.run(pat, k);
+    for (const e of buildCatalog()) upd.run(e.pattern, e.slug);
     db.exec("COMMIT");
   } catch (err) { db.exec("ROLLBACK"); throw err; }
   const nf = (db.prepare("SELECT COUNT(*) c FROM foods WHERE user_id IS NULL").get() as { c: number }).c;

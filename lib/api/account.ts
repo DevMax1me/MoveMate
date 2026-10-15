@@ -22,7 +22,7 @@ export function buildExport(userId: string) {
     meta: { exported_at: nowIso(), units: { weight: "kg", length: "cm", energy: "kcal", distance: "km", duration: "min (sauf mention s)", load: "kg" }, dates: "dates locales AAAA-MM-JJ ; horodatages techniques en UTC" },
     account: u, lifestyle: q("lifestyle_versions").map((x) => ({ ...x, data: P(x.data, {}) })), goals: q("goals"), weights: q("weights"), measurements: q("measurements"),
     meals: q("meals"), day_status: q("day_status"), foods_private: q("foods"), recipes: q("recipes").map((x) => ({ ...x, ingredients: P(x.ingredients, []) })),
-    exercises_private: q("exercises"), routines: q("routines").map((x) => ({ ...x, items: P(x.items, []) })), planned: q("planned"),
+    exercises_private: q("exercises"), exercise_media: q("exercise_user_media"), routines: q("routines").map((x) => ({ ...x, items: P(x.items, []) })), planned: q("planned"),
     workouts: q("workouts").map((x) => ({ ...x, snapshot: P(x.snapshot, null) })), sets: q("sets"), activities: q("activities"), notes: q("notes"),
     memory: q("memory"), conversations: q("conversations"), proposals: q("proposals").map((x) => ({ ...x, payload: P(x.payload, null), result: P(x.result, null) })), consents: q("consents"),
   };

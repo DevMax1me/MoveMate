@@ -1,12 +1,29 @@
 import { Router, bad, notFound, str, num, numOrNull, dateStr, J, P, todayIn, checkVersion } from "../http";
 import { all, get, run, tx, uid, nowIso } from "../db";
 import { compatible, missing } from "../equipment";
+import { groupsOf, resolveGroup } from "../muscles";
+import { PATTERN_CHOICES } from "../figures";
 import { strengthVolume, type SetLike } from "../calc";
 import { ApiError, type User } from "../auth";
 
-export type ExRow = { id: string; ex_key: string; version: number; user_id: string | null; name: string; alias: string | null; movement: string; primary_muscles: string; secondary_muscles: string; place: string; equipment: string; level: string; metric: "reps_load" | "time" | "distance"; steps: string | null; mistakes: string | null; easier: string | null; alternative: string | null; media_url: string | null; media_author: string | null; media_source: string | null; media_license: string | null; status: string; archived: number };
+export type ExRow = { id: string; ex_key: string; version: number; user_id: string | null; name: string; alias: string | null; movement: string; primary_muscles: string; secondary_muscles: string; place: string; equipment: string; level: string; metric: "reps_load" | "time" | "distance"; pattern: string | null; steps: string | null; mistakes: string | null; easier: string | null; alternative: string | null; media_url: string | null; media_author: string | null; media_source: string | null; media_license: string | null; status: string; archived: number };
 
 
+/** Lecture intégrée uniquement pour des hôtes connus (YouTube sans cookies, Vimeo) ou un fichier vidéo en https ; sinon simple lien. null = adresse refusée. */
+export function mediaEmbed(raw: string): { kind: "youtube" | "vimeo" | "file" | "link"; src: string } | null {
+  let u: URL;
+  try { u = new URL(raw); } catch { return null; }
+  if (u.protocol !== "https:" || u.username || u.password) return null;
+  const host = u.hostname.replace(/^www\./, "").replace(/^m\./, "");
+  if (host === "youtube.com" || host === "youtube-nocookie.com") {
+    const id = u.searchParams.get("v") ?? u.pathname.match(/^\/(?:shorts|embed|live)\/([\w-]{6,15})/)?.[1];
+    return id && /^[\w-]{6,15}$/.test(id) ? { kind: "youtube", src: `https://www.youtube-nocookie.com/embed/${id}` } : { kind: "link", src: u.toString() };
+  }
+  if (host === "youtu.be") { const id = u.pathname.slice(1); return /^[\w-]{6,15}$/.test(id) ? { kind: "youtube", src: `https://www.youtube-nocookie.com/embed/${id}` } : null; }
+  if (host === "vimeo.com" || host === "player.vimeo.com") { const id = u.pathname.match(/(\d{5,12})/)?.[1]; return id ? { kind: "vimeo", src: `https://player.vimeo.com/video/${id}` } : { kind: "link", src: u.toString() }; }
+  if (/\.(mp4|webm|ogg|mov)$/i.test(u.pathname)) return { kind: "file", src: u.toString() };
+  return { kind: "link", src: u.toString() };
+}
 const nz = (t: string) => t.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 // Vocabulaire de salle : on enrichit le texte cherché pour que « tirage horizontal », « row », « iso lat », « lat pulldown »… retrouvent les bonnes fiches.
 const SYNONYMS: [RegExp, string][] = [
@@ -36,33 +53,66 @@ const exOut = (e: ExRow, user: User) => {
 export function mountTraining(r: Router) {
   // --- catalogue ---
   r.get("/exercises", ({ user, query }) => {
-    const q = (query.get("q") ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-    const place = query.get("place"), muscle = query.get("muscle"), eq = query.get("equipment"), level = query.get("level"), type = query.get("type");
+    const q = nz(query.get("q") ?? "").trim();
+    const place = query.get("place"), eq = query.get("equipment"), level = query.get("level"), type = query.get("type");
+    const group = query.get("muscle") ? resolveGroup(query.get("muscle")!) : null;
     const rows = all<ExRow>(`SELECT * FROM exercises e WHERE (user_id IS NULL OR user_id=?) AND archived=0 AND status='published'
       AND version=(SELECT MAX(version) FROM exercises x WHERE x.ex_key=e.ex_key AND (x.user_id IS NULL OR x.user_id=?) AND x.status='published') ORDER BY name`, user.id, user.id);
-    const n = (s: string) => s.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
-    let out = rows.map((e) => exOut(e, user)).filter((e) =>
-      (!q || ((blob) => q.split(/[\s-]+/).filter(Boolean).every((w: string) => blob.includes(w)))(searchBlob(e))) &&
+    const words = q.split(/[\s-]+/).filter(Boolean);
+    const compatOnly = query.get("compatible") === "1";
+    // tous les filtres sauf le muscle : sert à compter les exercices par muscle (aide au choix)
+    const base = rows.map((e) => exOut(e, user)).map((e) => ({ e, blob: words.length ? searchBlob(e) : "" })).filter(({ e, blob }) =>
+      (!words.length || words.every((w) => blob.includes(w))) &&
       (!place || (place === "home" ? e.place !== "gym" : place === "gym" ? e.place !== "home" : true)) &&
-      (!muscle || e.primary_muscles.some((m: string) => n(m).includes(n(muscle))) || e.secondary_muscles.some((m: string) => n(m).includes(n(muscle)))) &&
       (!eq || (eq === "none" ? e.equipment.length === 0 : e.equipment.some((x: string) => x.includes(eq)))) &&
-      (!level || e.level === level) && (!type || e.movement === type));
-    if (query.get("compatible") === "1") out = out.filter((e) => e.compatible);
-    return { exercises: out };
+      (!level || e.level === level) && (!type || e.movement === type) && (!compatOnly || e.compatible));
+    const facets: Record<string, number> = {};
+    for (const { e } of base) for (const g of groupsOf(e.primary_muscles)) facets[g] = (facets[g] ?? 0) + 1;
+    let list = base.map(({ e }) => ({ e, prim: group ? groupsOf(e.primary_muscles).includes(group) : true, sec: group ? groupsOf(e.secondary_muscles).includes(group) : false }));
+    if (group) list = list.filter((x) => x.prim || x.sec);
+    // pertinence : nom qui commence par la recherche > nom qui la contient > autres ; muscle principal avant secondaire
+    const score = (e: any) => { const nm = nz(e.name); return (q && nm.startsWith(q) ? 6 : 0) + (q && nm.includes(q) ? 3 : 0) + words.filter((w) => nm.includes(w)).length + (e.alias && q && nz(e.alias).includes(q) ? 2 : 0); };
+    // avec un muscle choisi : les exercices qui le ciblent en premier et seul passent avant les mouvements d'ensemble, la mobilité venant après la musculation, et ceux faisables avec votre matériel avant les autres
+    const focus = (e: any) => { if (!group) return 0; const i = e.primary_muscles.findIndex((m: string) => groupsOf([m]).includes(group)); return i < 0 ? 9 : i; };
+    const soft = (e: any) => (group && group !== "cardio" && (e.movement === "mobilité" || e.movement === "cardio") ? 1 : 0);
+    const spread = (e: any) => (group ? groupsOf(e.primary_muscles).length : 0);
+    list.sort((x, y) => (+y.prim - +x.prim) || (score(y.e) - score(x.e)) || (soft(x.e) - soft(y.e)) || (+y.e.compatible - +x.e.compatible) || (focus(x.e) - focus(y.e)) || (spread(x.e) - spread(y.e)) || x.e.name.localeCompare(y.e.name, "fr"));
+    return { exercises: list.map(({ e, prim }) => ({ ...e, secondaryOnly: !!group && !prim })), facets, total: base.length };
   });
   r.get("/exercises/:key", ({ user, params }) => {
     const e = latestEx(user.id, params[0]);
     if (!e) throw notFound();
     const x = exOut(e, user);
     const alt = e.alternative ? latestEx(user.id, e.alternative) : null, easier = e.easier ? latestEx(user.id, e.easier) : null;
-    return { exercise: x, alternative: alt && exOut(alt, user), easier: easier && exOut(easier, user) };
+    // exercices les plus ressemblants : mêmes muscles principaux, même mouvement, même lieu, compatibles avec le matériel de l'utilisateur
+    const myGroups = groupsOf(x.primary_muscles);
+    const pool = all<ExRow>(`SELECT * FROM exercises e WHERE (user_id IS NULL OR user_id=?) AND archived=0 AND status='published' AND ex_key<>?
+      AND version=(SELECT MAX(version) FROM exercises v WHERE v.ex_key=e.ex_key AND (v.user_id IS NULL OR v.user_id=?) AND v.status='published')`, user.id, e.ex_key, user.id);
+    const similar = pool.map((o) => exOut(o, user)).map((o) => {
+      const og = groupsOf(o.primary_muscles);
+      const shared = og.filter((g) => myGroups.includes(g)).length;
+      const s = shared * 3 + (o.movement === x.movement ? 2 : 0) + (o.pattern && o.pattern === x.pattern ? 2 : 0) + (o.place === x.place ? 0.5 : 0) + (o.level === x.level ? 0.5 : 0) + (o.compatible ? 1 : 0);
+      return { o, s, shared };
+    }).filter((z) => z.shared > 0 && z.o.movement === x.movement).sort((p, q) => q.s - p.s).slice(0, 8).map((z) => ({ ex_key: z.o.ex_key, name: z.o.name, pattern: z.o.pattern, equipment: z.o.equipment, primary_muscles: z.o.primary_muscles, compatible: z.o.compatible, place: z.o.place, movement: z.o.movement }));
+    const mine = get<any>("SELECT url,title FROM exercise_user_media WHERE user_id=? AND ex_key=?", user.id, e.ex_key);
+    const pub = e.media_url ? { url: e.media_url, author: e.media_author, source: e.media_source, license: e.media_license, embed: mediaEmbed(e.media_url) } : null;
+    return { exercise: x, alternative: alt && exOut(alt, user), easier: easier && exOut(easier, user), similar,
+      media: { public: pub, mine: mine ? { ...mine, embed: mediaEmbed(mine.url) } : null, search: `https://www.youtube.com/results?search_query=${encodeURIComponent(e.name + " exercice technique")}` } };
   });
+  // Lien vidéo personnel (privé, lié au compte, exporté et supprimé avec lui).
+  r.post("/exercises/:key/media", ({ user, params, body }) => {
+    if (!latestEx(user.id, params[0])) throw notFound();
+    const url = str(body.url, "Lien", 500);
+    if (!mediaEmbed(url)) throw bad("Lien invalide : utilisez une adresse https:// (YouTube, Vimeo ou fichier vidéo .mp4/.webm).");
+    run(`INSERT INTO exercise_user_media(user_id,ex_key,url,title,created_at) VALUES(?,?,?,?,?) ON CONFLICT(user_id,ex_key) DO UPDATE SET url=excluded.url, title=excluded.title`, user.id, params[0], url, str(body.title, "Titre", 120, false) || null, new Date().toISOString());
+  });
+  r.del("/exercises/:key/media", ({ user, params }) => { run("DELETE FROM exercise_user_media WHERE user_id=? AND ex_key=?", user.id, params[0]); });
   r.post("/exercises", ({ user, body }) => {
     const id = uid(), key = "u-" + uid();
     const metric = ["reps_load", "time", "distance"].includes(body.metric) ? body.metric : "reps_load";
-    run(`INSERT INTO exercises(id,ex_key,version,user_id,name,alias,movement,primary_muscles,secondary_muscles,place,equipment,level,metric,steps,mistakes,status)
-      VALUES(?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,'published')`, id, key, user.id, str(body.name, "Nom", 100), str(body.alias, "Alias", 100, false) || null, str(body.movement ?? "autre", "Mouvement", 40),
-      J(arr(body.primary_muscles)), J(arr(body.secondary_muscles)), ["home", "gym", "both"].includes(body.place) ? body.place : "both", J(arr(body.equipment)), body.level ?? "débutant", metric, str(body.steps, "Étapes", 3000, false) || null, str(body.mistakes, "Erreurs", 1000, false) || null);
+    run(`INSERT INTO exercises(id,ex_key,version,user_id,name,alias,movement,primary_muscles,secondary_muscles,place,equipment,level,metric,steps,mistakes,pattern,status)
+      VALUES(?,?,1,?,?,?,?,?,?,?,?,?,?,?,?,?,'published')`, id, key, user.id, str(body.name, "Nom", 100), str(body.alias, "Alias", 100, false) || null, str(body.movement ?? "autre", "Mouvement", 40),
+      J(arr(body.primary_muscles)), J(arr(body.secondary_muscles)), ["home", "gym", "both"].includes(body.place) ? body.place : "both", J(arr(body.equipment)), body.level ?? "débutant", metric, str(body.steps, "Étapes", 3000, false) || null, str(body.mistakes, "Erreurs", 1000, false) || null, PATTERN_CHOICES.some(([p]) => p === body.pattern) ? body.pattern : null);
     return { id, ex_key: key };
   });
   // Modifier ou archiver une fiche n'altère pas les séances historiques (snapshot + id de version).
@@ -71,10 +121,10 @@ export function mountTraining(r: Router) {
     if (!e || e.user_id !== user.id) throw notFound();
     checkVersion(body, e.version);
     const id = uid();
-    run(`INSERT INTO exercises(id,ex_key,version,user_id,name,alias,movement,primary_muscles,secondary_muscles,place,equipment,level,metric,steps,mistakes,easier,alternative,status)
-      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'published')`, id, e.ex_key, e.version + 1, user.id, body.name ? str(body.name, "Nom", 100) : e.name, e.alias, body.movement ?? e.movement,
+    run(`INSERT INTO exercises(id,ex_key,version,user_id,name,alias,movement,primary_muscles,secondary_muscles,place,equipment,level,metric,steps,mistakes,easier,alternative,pattern,status)
+      VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'published')`, id, e.ex_key, e.version + 1, user.id, body.name ? str(body.name, "Nom", 100) : e.name, e.alias, body.movement ?? e.movement,
       body.primary_muscles ? J(arr(body.primary_muscles)) : e.primary_muscles, e.secondary_muscles, body.place ?? e.place, body.equipment ? J(arr(body.equipment)) : e.equipment, body.level ?? e.level, e.metric,
-      body.steps !== undefined ? str(body.steps, "Étapes", 3000, false) : e.steps, body.mistakes !== undefined ? str(body.mistakes, "Erreurs", 1000, false) : e.mistakes, e.easier, e.alternative);
+      body.steps !== undefined ? str(body.steps, "Étapes", 3000, false) : e.steps, body.mistakes !== undefined ? str(body.mistakes, "Erreurs", 1000, false) : e.mistakes, e.easier, e.alternative, e.pattern);
     return { id, version: e.version + 1 };
   });
   r.del("/exercises/:key", ({ user, params }) => {

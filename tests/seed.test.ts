@@ -19,6 +19,9 @@ describe("T22 catalogue", () => {
     const bare = home.filter((e) => JSON.parse(e.equipment).every((t: string) => isKnownToken(t) && !["haltères", "barre"].includes(t)));
     expect(home.length).toBeGreaterThanOrEqual(150); expect(gym.length).toBeGreaterThanOrEqual(250); expect(bare.length).toBeGreaterThanOrEqual(80);
   });
+  it("chaque fiche publique a un type de mouvement (sert au schéma et à la liste des exercices ressemblants)", () => {
+    for (const e of ex) expect(e.pattern, e.ex_key).toBeTruthy();
+  });
   it("3 routines de démonstration, aliments génériques", () => {
     expect((d.prepare("SELECT COUNT(*) c FROM routines WHERE demo=1").get() as any).c).toBe(3);
     expect((d.prepare("SELECT COUNT(*) c FROM foods WHERE user_id IS NULL").get() as any).c).toBeGreaterThanOrEqual(30);

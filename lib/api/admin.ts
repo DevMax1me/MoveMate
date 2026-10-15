@@ -18,9 +18,9 @@ export function mountAdmin(r: Router) {
     const media = body.media_url ? { url: str(body.media_url, "Média", 500), author: str(body.media_author, "Auteur du média", 120), source: str(body.media_source, "Source du média", 200), license: str(body.media_license, "Licence du média", 120) } : null;
     if (media && !/^https?:\/\//.test(media.url)) throw bad("URL de média invalide.");
     const id = uid();
-    run(`INSERT INTO exercises(id,ex_key,version,user_id,name,alias,movement,primary_muscles,secondary_muscles,place,equipment,level,metric,steps,mistakes,easier,alternative,media_url,media_author,media_source,media_license,status,reviewed_at)
-      VALUES(?,?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'published',?)`, id, cur.ex_key, cur.version + 1, body.name ? str(body.name, "Nom", 100) : cur.name, cur.alias, cur.movement, cur.primary_muscles, cur.secondary_muscles, cur.place, cur.equipment, cur.level, cur.metric,
-      body.steps !== undefined ? str(body.steps, "Étapes", 3000, false) : cur.steps, body.mistakes !== undefined ? str(body.mistakes, "Erreurs", 1000, false) : cur.mistakes, cur.easier, cur.alternative,
+    run(`INSERT INTO exercises(id,ex_key,version,user_id,name,alias,movement,primary_muscles,secondary_muscles,place,equipment,level,metric,steps,mistakes,easier,alternative,pattern,media_url,media_author,media_source,media_license,status,reviewed_at)
+      VALUES(?,?,?,NULL,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'published',?)`, id, cur.ex_key, cur.version + 1, body.name ? str(body.name, "Nom", 100) : cur.name, cur.alias, cur.movement, cur.primary_muscles, cur.secondary_muscles, cur.place, cur.equipment, cur.level, cur.metric,
+      body.steps !== undefined ? str(body.steps, "Étapes", 3000, false) : cur.steps, body.mistakes !== undefined ? str(body.mistakes, "Erreurs", 1000, false) : cur.mistakes, cur.easier, cur.alternative, cur.pattern,
       media?.url ?? cur.media_url, media?.author ?? cur.media_author, media?.source ?? cur.media_source, media?.license ?? cur.media_license, body.reviewed ? nowIso() : null);
     audit(null, user.id, "exercise_published", `${cur.ex_key}@${cur.version + 1}`);
     return { id, version: cur.version + 1 };
